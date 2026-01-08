@@ -146,4 +146,120 @@ struct SkillTests {
         #expect(skill.hasReferences == false)
         #expect(skill.hasScripts == false)
     }
+
+    // MARK: - Mutation Methods
+
+    @Test func `installing adds provider to installed providers`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "")
+        )
+
+        let updated = skill.installing(for: .claude)
+
+        #expect(updated.isInstalledFor(.claude) == true)
+        #expect(updated.isInstalledFor(.codex) == false)
+    }
+
+    @Test func `uninstalling removes provider from installed providers`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude, .codex]
+        )
+
+        let updated = skill.uninstalling(from: .claude)
+
+        #expect(updated.isInstalledFor(.claude) == false)
+        #expect(updated.isInstalledFor(.codex) == true)
+    }
+}
+
+// MARK: - SkillSource Tests
+
+@Suite
+struct SkillSourceTests {
+
+    @Test func `local source returns provider display name`() {
+        let source = SkillSource.local(provider: .claude)
+
+        #expect(source.displayName == "Claude Code")
+    }
+
+    @Test func `remote source returns repo name from URL`() {
+        let source = SkillSource.remote(repoUrl: "https://github.com/anthropics/skills")
+
+        #expect(source.displayName == "skills")
+    }
+
+    @Test func `remote source with empty URL returns Remote`() {
+        let source = SkillSource.remote(repoUrl: "")
+
+        #expect(source.displayName == "Remote")
+    }
+}
+
+// MARK: - SkillsRepo Tests
+
+@Suite
+struct SkillsRepoTests {
+
+    @Test func `extracts name from GitHub URL`() {
+        let repo = SkillsRepo(url: "https://github.com/anthropics/skills")
+
+        #expect(repo.name == "Skills")
+    }
+
+    @Test func `extracts name from URL with trailing slash`() {
+        let repo = SkillsRepo(url: "https://github.com/owner/repo/")
+
+        #expect(repo.name == "Repo")
+    }
+
+    @Test func `extracts name from URL with .git suffix`() {
+        let repo = SkillsRepo(url: "https://github.com/owner/repo.git")
+
+        #expect(repo.name == "Repo")
+    }
+
+    @Test func `uses provided name over extracted name`() {
+        let repo = SkillsRepo(url: "https://github.com/anthropics/skills", name: "Custom Name")
+
+        #expect(repo.name == "Custom Name")
+    }
+
+    @Test func `validates GitHub URL`() {
+        let validRepo = SkillsRepo(url: "https://github.com/owner/repo")
+        let invalidRepo = SkillsRepo(url: "https://example.com/repo")
+
+        #expect(validRepo.isValid == true)
+        #expect(invalidRepo.isValid == false)
+    }
+
+    @Test func `anthropicSkills has correct values`() {
+        let repo = SkillsRepo.anthropicSkills
+
+        #expect(repo.url == "https://github.com/anthropics/skills")
+        #expect(repo.name == "Anthropic Skills")
+    }
+
+    @Test func `returns Unknown for empty URL`() {
+        let name = SkillsRepo.extractName(from: "")
+
+        #expect(name == "Unknown")
+    }
+
+    @Test func `handles http URL`() {
+        let name = SkillsRepo.extractName(from: "http://github.com/owner/repo")
+
+        #expect(name == "Repo")
+    }
 }
