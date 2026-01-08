@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Unit Tests with Coverage
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.0"
+
+      - name: Resolve Dependencies
+        run: swift package resolve
+
+      - name: Build
+        run: swift build
+
+      - name: Run Tests with Coverage
+        run: |
+          swift test --enable-code-coverage --parallel
+
+      - name: Generate Coverage Report
+        run: |
+          BIN_PATH=$(swift build --show-bin-path)
+          XCTEST_PATH=$(find ${BIN_PATH} -name "*.xctest" -type d | head -1)
+          COV_BIN="${XCTEST_PATH}/Contents/MacOS/$(basename ${XCTEST_PATH} .xctest)"
+          PROFDATA=$(find .build -name "default.profdata" -type f | head -1)
+
+          xcrun llvm-cov export \
+            -format="lcov" \
+            -instr-profile="${PROFDATA}" \
+            "${COV_BIN}" \
+            -ignore-filename-regex=".build|Tests|Sources/App/Views" \
+            > coverage.lcov
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.lcov
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

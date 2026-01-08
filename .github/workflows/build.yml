@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build:
+    name: Build and Verify
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.0"
+
+      - name: Resolve Dependencies
+        run: swift package resolve
+
+      - name: Build Debug
+        run: swift build
+
+      - name: Build Release
+        run: swift build -c release

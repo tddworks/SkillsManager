@@ -7,6 +7,7 @@ let project = Project(
         developmentRegion: "en"
     ),
     packages: [
+        .remote(url: "https://github.com/sparkle-project/Sparkle", requirement: .upToNextMajor(from: "2.8.1")),
         .remote(url: "https://github.com/Kolos65/Mockable.git", requirement: .upToNextMajor(from: "0.5.0")),
         .remote(url: "https://github.com/swiftlang/swift-markdown.git", requirement: .upToNextMajor(from: "0.5.0")),
     ],
@@ -79,6 +80,7 @@ let project = Project(
                 .target(name: "Domain"),
                 .target(name: "Infrastructure"),
                 .package(product: "Markdown"),
+                .package(product: "Sparkle"),
             ],
             settings: .settings(
                 base: [

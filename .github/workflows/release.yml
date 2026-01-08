@@ -1,0 +1,463 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0 or 1.0.0-beta.1)'
+        required: true
+        type: string
+      publish_appcast:
+        description: 'Publish appcast to GitHub Pages (auto-updates)'
+        required: false
+        type: boolean
+        default: true
+      debug:
+        description: 'Enable verbose debug output'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  APP_NAME: SkillsManager
+  BUNDLE_ID: com.tddworks.skillsmanager
+  SWIFT_VERSION: "6.0"
+
+jobs:
+  release:
+    name: Build, Sign, Notarize & Release
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate build number
+
+      - name: Setup Swift
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Install Tuist
+        run: brew install tuist
+
+      - name: Cache Tuist
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/tuist
+            .tuist-cache
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Project.swift', 'Tuist.swift', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-tuist-
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+
+          # SemVer regex: X.Y.Z with optional pre-release (-alpha.1, -beta.2, -rc.1, etc.)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
+            echo "Error: Invalid version format: $VERSION (expected X.Y.Z or X.Y.Z-prerelease)"
+            exit 1
+          fi
+
+          # Determine if this is a pre-release
+          if [[ "$VERSION" =~ - ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Update Info.plist Version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          INFO_PLIST="Sources/App/Info.plist"
+          BUILD_NUMBER="${{ github.run_number }}"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$INFO_PLIST"
+
+          echo "Updated version to $VERSION (build $BUILD_NUMBER)"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+
+      - name: Install Dependencies & Generate Xcode Project
+        run: |
+          tuist install
+
+      - name: Generate Xcode Project
+        run: |
+          tuist generate --no-open
+          echo "=== Available schemes ==="
+          xcodebuild -workspace SkillsManager.xcworkspace -list
+
+      - name: Build Universal App Bundle
+        run: |
+          ARCHIVE_PATH="build/${APP_NAME}.xcarchive"
+
+          # Build for both architectures using xcodebuild archive
+          # -skipMacroValidation: Trust Swift macros from packages (Mockable)
+          xcodebuild archive \
+            -workspace "${APP_NAME}.xcworkspace" \
+            -scheme "${APP_NAME}" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            -destination "generic/platform=macOS" \
+            -skipMacroValidation \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+          # Extract app from archive
+          cp -R "$ARCHIVE_PATH/Products/Applications/${APP_NAME}.app" .
+
+          echo "Created app bundle:"
+          ls -la "${APP_NAME}.app/Contents/"
+          ls -la "${APP_NAME}.app/Contents/Resources/" || true
+          file "${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
+
+      - name: Import Code Signing Certificate
+        env:
+          P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          DEBUG: ${{ inputs.debug || false }}
+        run: |
+          # Decode certificate
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+
+          if [ "$DEBUG" = "true" ]; then
+            echo "=== P12 file info ==="
+            ls -la "$RUNNER_TEMP/certificate.p12"
+            file "$RUNNER_TEMP/certificate.p12"
+            echo ""
+            echo "=== P12 contents check ==="
+            openssl pkcs12 -in "$RUNNER_TEMP/certificate.p12" -passin pass:"$P12_PASSWORD" -legacy -nokeys 2>&1 | head -20 || \
+            openssl pkcs12 -in "$RUNNER_TEMP/certificate.p12" -passin pass:"$P12_PASSWORD" -nokeys 2>&1 | head -20
+          fi
+
+          # Validate P12 file (try with -legacy flag for OpenSSL 3.x)
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/certificate.p12" -passin pass:"$P12_PASSWORD" -noout 2>/dev/null; then
+            if ! openssl pkcs12 -in "$RUNNER_TEMP/certificate.p12" -passin pass:"$P12_PASSWORD" -legacy -noout 2>/dev/null; then
+              echo "ERROR: Failed to read P12 file. Wrong password or corrupted file."
+              exit 1
+            fi
+          fi
+
+          # Create keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Download Apple certificate chain (required for GitHub-hosted runners)
+          echo "Downloading Apple certificate chain..."
+          curl -sL -o "$RUNNER_TEMP/AppleRootCA-G2.cer" \
+            "https://www.apple.com/certificateauthority/AppleRootCA-G2.cer"
+          curl -sL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" \
+            "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer"
+          curl -sL -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" \
+            "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"
+
+          # Import Apple root and intermediate certificates
+          echo "Importing Apple certificate chain..."
+          security import "$RUNNER_TEMP/AppleRootCA-G2.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign 2>&1 || true
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign 2>&1 || true
+          security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign 2>&1 || true
+
+          # Import user's Developer ID certificate
+          echo "Importing Developer ID certificate..."
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -f pkcs12 2>&1
+
+          # Add keychain to search list (BEFORE login keychain)
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychain -d user | xargs)
+
+          if [ "$DEBUG" = "true" ]; then
+            echo ""
+            echo "=== Certificates in keychain ==="
+            security find-certificate -a "$KEYCHAIN_PATH" | grep -E "^keychain:|alis|labl" || echo "No certificates found"
+            echo ""
+            echo "=== Private keys in keychain ==="
+            security find-key -a "$KEYCHAIN_PATH" 2>&1 | head -30 || echo "No keys found or error"
+          fi
+
+          # Set partition list (allow codesign access without prompt)
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" 2>&1 || true
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "Certificate import complete"
+
+      - name: Set Signing Identity
+        env:
+          DEBUG: ${{ inputs.debug || false }}
+        run: |
+          if [ "$DEBUG" = "true" ]; then
+            echo "=== All identities in keychain ==="
+            security find-identity -v "$KEYCHAIN_PATH" || true
+            echo ""
+            echo "=== Codesigning identities ==="
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+            echo ""
+            echo "=== System codesigning identities ==="
+            security find-identity -v -p codesigning || true
+            echo ""
+            echo "=== Certificate details ==="
+            security find-certificate -a -p "$KEYCHAIN_PATH" | openssl x509 -noout -subject -dates 2>/dev/null || true
+          fi
+
+          # Use secret if set, otherwise auto-detect
+          if [ -n "${{ secrets.APP_IDENTITY }}" ]; then
+            IDENTITY="${{ secrets.APP_IDENTITY }}"
+            echo "Using identity from secret"
+          else
+            # Try from our keychain first
+            IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID" | head -1 | awk -F '"' '{print $2}')
+            # Then try system-wide
+            if [ -z "$IDENTITY" ]; then
+              IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID" | head -1 | awk -F '"' '{print $2}')
+            fi
+            # Then try any valid identity
+            if [ -z "$IDENTITY" ]; then
+              IDENTITY=$(security find-identity -v -p codesigning | grep -E "^\s+[0-9]+\)" | head -1 | awk -F '"' '{print $2}')
+            fi
+          fi
+
+          if [ -z "$IDENTITY" ]; then
+            echo "ERROR: No valid codesigning identity found"
+            echo "Possible causes: expired cert, wrong cert type, or missing private key"
+            echo "Run with debug=true for more details"
+            exit 1
+          fi
+
+          echo "Found signing identity: $IDENTITY"
+          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+
+      - name: Sign App Bundle
+        run: ./scripts/sign-app.sh "${APP_NAME}.app" "$SIGNING_IDENTITY" Sources/App/entitlements.plist
+
+      - name: Notarize App
+        env:
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          # Setup API key file
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          echo "$APP_STORE_CONNECT_API_KEY_P8" | base64 --decode > "$API_KEY_PATH"
+
+          # Run notarization script
+          ./scripts/notarize-app.sh "${APP_NAME}.app" "$API_KEY_PATH" "$APP_STORE_CONNECT_KEY_ID" "$APP_STORE_CONNECT_ISSUER_ID"
+
+          # Cleanup API key
+          rm -f "$API_KEY_PATH"
+
+      - name: Create Notarized ZIP
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTARIZED_ZIP="${APP_NAME}-${VERSION}.zip"
+
+          # Recreate ZIP with stapled app
+          rm -f "$NOTARIZED_ZIP"
+          ditto -c -k --keepParent "${APP_NAME}.app" "$NOTARIZED_ZIP"
+
+          shasum -a 256 "$NOTARIZED_ZIP" > "${NOTARIZED_ZIP}.sha256"
+
+          echo "NOTARIZED_ZIP=$NOTARIZED_ZIP" >> $GITHUB_ENV
+
+      - name: Extract Release Notes from CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Extract release notes from CHANGELOG.md
+          if [ -f "CHANGELOG.md" ]; then
+            NOTES=$(./scripts/extract-changelog.sh "$VERSION" 2>/dev/null || echo "")
+          fi
+
+          # Fallback if no notes found
+          if [ -z "$NOTES" ]; then
+            NOTES="Bug fixes and improvements."
+            echo "::warning::No changelog entry found for v$VERSION, using default message"
+          fi
+
+          # Store in environment file for multiline support
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$NOTES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "Release notes extracted for v$VERSION"
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_FILE="${APP_NAME}-${VERSION}.dmg"
+
+          # Create DMG (create-dmg may return non-zero even on success)
+          create-dmg \
+            --volname "$APP_NAME" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "${APP_NAME}.app" 150 190 \
+            --hide-extension "${APP_NAME}.app" \
+            --app-drop-link 450 185 \
+            --no-internet-enable \
+            "$DMG_FILE" \
+            "${APP_NAME}.app" || true
+
+          if [ ! -f "$DMG_FILE" ]; then
+            echo "Error: DMG creation failed"
+            exit 1
+          fi
+
+          # Sign DMG
+          codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_FILE"
+
+          shasum -a 256 "$DMG_FILE" > "${DMG_FILE}.sha256"
+
+          echo "DMG_FILE=$DMG_FILE" >> $GITHUB_ENV
+
+          echo "Created DMG:"
+          ls -lh "$DMG_FILE"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Skills Manager v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.is_prerelease }}
+          files: |
+            ${{ env.NOTARIZED_ZIP }}
+            ${{ env.NOTARIZED_ZIP }}.sha256
+            ${{ env.DMG_FILE }}
+            ${{ env.DMG_FILE }}.sha256
+          body: |
+            ## What's New
+
+            ${{ env.RELEASE_NOTES }}
+
+            ---
+
+            ## Installation
+
+            **Option 1: DMG (Recommended)**
+            1. Download `${{ env.DMG_FILE }}`
+            2. Open the DMG and drag SkillsManager.app to Applications
+            3. Launch from Applications folder
+
+            **Option 2: ZIP**
+            1. Download `${{ env.NOTARIZED_ZIP }}`
+            2. Unzip and move SkillsManager.app to Applications
+            3. Launch from Applications folder
+
+            ## Verification
+
+            SHA256 checksums are provided. Verify with:
+            ```bash
+            shasum -a 256 -c SkillsManager-${{ steps.version.outputs.version }}.zip.sha256
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Sparkle Appcast
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish_appcast) || github.event_name == 'push' }}
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/${NOTARIZED_ZIP}"
+
+          # Find sign_update tool
+          SIGN_UPDATE=$(find .build -name "sign_update" -path "*/bin/*" | head -1)
+
+          if [ -z "$SIGN_UPDATE" ]; then
+            echo "Warning: sign_update not found, skipping appcast generation"
+            exit 0
+          fi
+
+          if [ -z "$SPARKLE_EDDSA_PRIVATE_KEY" ]; then
+            echo "Warning: SPARKLE_EDDSA_PRIVATE_KEY not set, skipping appcast generation"
+            exit 0
+          fi
+
+          # Get file size
+          FILE_SIZE=$(stat -f%z "$NOTARIZED_ZIP")
+
+          # Sign the archive
+          echo "Signing archive with EdDSA..."
+          SIGNATURE=$("$SIGN_UPDATE" "$NOTARIZED_ZIP" --ed-key-file <(echo "$SPARKLE_EDDSA_PRIVATE_KEY") 2>&1 || true)
+
+          # Extract EdDSA signature
+          ED_SIGNATURE=$(echo "$SIGNATURE" | grep -o 'edSignature="[^"]*"' | sed 's/edSignature="//;s/"//' || echo "")
+
+          if [ -z "$ED_SIGNATURE" ]; then
+            echo "Warning: Failed to extract EdDSA signature"
+            echo "Signature output: $SIGNATURE"
+            exit 0
+          fi
+
+          echo "EdDSA signature generated successfully"
+
+          # Determine channel for appcast (beta for pre-releases)
+          CHANNEL=""
+          if [[ "${{ steps.version.outputs.is_prerelease }}" == "true" ]]; then
+            CHANNEL="beta"
+            echo "This is a beta release, adding channel: $CHANNEL"
+          fi
+
+          # Generate/update appcast.xml using RELEASE_NOTES from CHANGELOG.md
+          echo "Build number: $BUILD_NUMBER"
+          ./scripts/update-appcast.sh "$VERSION" "$BUILD_NUMBER" "$DOWNLOAD_URL" "$ED_SIGNATURE" "$FILE_SIZE" "$RELEASE_NOTES" "$CHANNEL"
+
+      - name: Setup Pages
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish_appcast) || github.event_name == 'push' }}
+        uses: actions/configure-pages@v4
+
+      - name: Upload appcast to Pages
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish_appcast) || github.event_name == 'push' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish_appcast) || github.event_name == 'push' }}
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Remove keychain
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
+          # Remove sensitive files
+          rm -f "$RUNNER_TEMP/certificate.p12" || true
+          rm -f "$RUNNER_TEMP/AuthKey_"*.p8 || true
