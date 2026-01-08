@@ -20,7 +20,10 @@ let package = Package(
             dependencies: [
                 .product(name: "Mockable", package: "Mockable")
             ],
-            path: "Sources/Domain"
+            path: "Sources/Domain",
+            swiftSettings: [
+                .define("MOCKING")
+            ]
         ),
         .testTarget(
             name: "DomainTests",
@@ -42,7 +45,10 @@ let package = Package(
                 .product(name: "Markdown", package: "swift-markdown"),
                 .product(name: "Mockable", package: "Mockable")
             ],
-            path: "Sources/Infrastructure"
+            path: "Sources/Infrastructure",
+            swiftSettings: [
+                .define("MOCKING")
+            ]
         ),
         .testTarget(
             name: "InfrastructureTests",
