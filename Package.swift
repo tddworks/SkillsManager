@@ -36,7 +36,8 @@ let package = Package(
             name: "Infrastructure",
             dependencies: [
                 "Domain",
-                .product(name: "Markdown", package: "swift-markdown")
+                .product(name: "Markdown", package: "swift-markdown"),
+                .product(name: "Mockable", package: "Mockable")
             ],
             path: "Sources/Infrastructure"
         ),

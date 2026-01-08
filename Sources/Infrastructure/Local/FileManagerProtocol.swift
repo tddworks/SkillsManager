@@ -1,6 +1,8 @@
 import Foundation
+import Mockable
 
 /// Protocol abstracting FileManager for testing
+@Mockable
 public protocol FileManagerProtocol: Sendable {
     func fileExists(atPath path: String) -> Bool
     func contentsOfDirectory(atPath path: String) throws -> [String]

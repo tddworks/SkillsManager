@@ -183,8 +183,10 @@ public final class AppState {
             // Load remote skills from all repositories
             for repo in repositories {
                 do {
+                    print("[AppState] Loading skills from: \(repo.name) (\(repo.url))")
                     let remoteRepo = GitHubSkillRepository(repoUrl: repo.url)
                     let remoteSkills = try await remoteRepo.fetchAll()
+                    print("[AppState] Found \(remoteSkills.count) skills in \(repo.name)")
 
                     for skill in remoteSkills {
                         let key = "\(repo.id)-\(skill.id)"
@@ -207,7 +209,23 @@ public final class AppState {
                         }
                     }
                 } catch {
-                    // Log error but continue with other repos
+                    // Show error to user but continue with other repos
+                    let errorDesc: String
+                    if let gitError = error as? GitHubClientError {
+                        switch gitError {
+                        case .rateLimited:
+                            errorDesc = "GitHub API rate limit exceeded. Try again in an hour."
+                        case .networkError(let underlying):
+                            errorDesc = "Network error: \(underlying.localizedDescription)"
+                        case .fileNotFound:
+                            errorDesc = "Repository structure not recognized."
+                        default:
+                            errorDesc = "Failed to load: \(error.localizedDescription)"
+                        }
+                    } else {
+                        errorDesc = "Failed to load: \(error.localizedDescription)"
+                    }
+                    errorMessage = "Error loading \(repo.name): \(errorDesc)"
                     print("Failed to load from \(repo.name): \(error)")
                 }
             }
