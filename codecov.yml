@@ -15,5 +15,7 @@ comment:
 
 ignore:
   - "Tests/**/*"
-  - "Sources/App/Views/**/*"  # UI code - harder to test
+  - "Sources/App/**/*"  # App layer - UI and state orchestration
+  - "Sources/Infrastructure/GitHub/GitHubClient.swift"  # Pure HTTP adapter
+  - "Sources/Infrastructure/Installer/FileSystemSkillInstaller.swift"  # Pure file system adapter
   - "**/*Preview*.swift"  # SwiftUI previews

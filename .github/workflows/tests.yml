@@ -41,7 +41,7 @@ jobs:
             -format="lcov" \
             -instr-profile="${PROFDATA}" \
             "${COV_BIN}" \
-            -ignore-filename-regex=".build|Tests|Sources/App/Views" \
+            -ignore-filename-regex=".build|Tests|Sources/App|Sources/Infrastructure/GitHub/GitHubClient|Sources/Infrastructure/Installer/FileSystemSkillInstaller" \
             > coverage.lcov
 
       - name: Upload Coverage to Codecov
