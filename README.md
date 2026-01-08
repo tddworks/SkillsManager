@@ -113,6 +113,53 @@ Skills Manager uses a **layered architecture** following rich domain model patte
 - **No ViewModel Layer** - Views consume domain models directly
 - **Actors for Thread Safety** - Concurrent operations handled safely
 
+## Release & Auto-Updates
+
+The project includes CI/CD workflows and Sparkle integration for automatic updates.
+
+### Setup Sparkle Keys
+
+Generate EdDSA keys for signing updates:
+
+```bash
+# Build first to get Sparkle tools
+swift build
+
+# Generate key pair
+./scripts/sparkle-setup.sh
+```
+
+The script will:
+1. Generate a public/private EdDSA key pair
+2. Optionally update `Info.plist` with the public key
+3. Display the private key to add as a GitHub secret
+
+### Required GitHub Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `APPLE_CERTIFICATE_P12` | Base64-encoded Developer ID certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Certificate password |
+| `APP_STORE_CONNECT_API_KEY_P8` | Base64-encoded App Store Connect API key |
+| `APP_STORE_CONNECT_KEY_ID` | API key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | Team issuer ID |
+| `SPARKLE_EDDSA_PRIVATE_KEY` | EdDSA private key for signing updates |
+| `CODECOV_TOKEN` | (Optional) Codecov upload token |
+
+### Creating a Release
+
+Releases are triggered by:
+- Pushing a version tag: `git tag v1.0.0 && git push --tags`
+- Manual workflow dispatch with version input
+
+The release workflow will:
+1. Build universal binary (arm64 + x86_64)
+2. Sign with Developer ID
+3. Notarize with Apple
+4. Create DMG and ZIP artifacts
+5. Publish GitHub Release
+6. Update Sparkle appcast for auto-updates
+
 ## Project Structure
 
 ```
