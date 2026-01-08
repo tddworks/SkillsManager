@@ -8,6 +8,22 @@
 
 A macOS application for discovering, browsing, and installing skills for AI coding assistants. Manage skills for Claude Code and Codex from GitHub repositories or your local filesystem.
 
+<p align="center">
+  <img src="docs/screenshots/screenshot-home.png" alt="Skills Manager Home" width="700"/>
+</p>
+<p align="center">
+  <em>Browse and manage skills from GitHub repositories</em>
+</p>
+
+### Install Skills
+
+<p align="center">
+  <img src="docs/screenshots/screenshot-skill-install.png" alt="Install Skill" width="700"/>
+</p>
+<p align="center">
+  <em>Install skills to Claude Code and/or Codex with one click</em>
+</p>
+
 ## Features
 
 - **Browse Remote Skills** - Discover skills from GitHub repositories like [anthropics/skills](https://github.com/anthropics/skills)
