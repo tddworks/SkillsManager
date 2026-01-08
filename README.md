@@ -2,6 +2,7 @@
 
 [![Build](https://github.com/tddworks/SkillsManager/actions/workflows/build.yml/badge.svg)](https://github.com/tddworks/SkillsManager/actions/workflows/build.yml)
 [![Tests](https://github.com/tddworks/SkillsManager/actions/workflows/tests.yml/badge.svg)](https://github.com/tddworks/SkillsManager/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/tddworks/SkillsManager/graph/badge.svg)](https://codecov.io/gh/tddworks/SkillsManager)
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%2015-blue.svg)](https://developer.apple.com)
 
