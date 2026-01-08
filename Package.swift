@@ -28,7 +28,10 @@ let package = Package(
                 "Domain",
                 .product(name: "Mockable", package: "Mockable")
             ],
-            path: "Tests/DomainTests"
+            path: "Tests/DomainTests",
+            swiftSettings: [
+                .define("MOCKING")
+            ]
         ),
 
         // Infrastructure Layer
@@ -48,7 +51,10 @@ let package = Package(
                 "Domain",
                 .product(name: "Mockable", package: "Mockable")
             ],
-            path: "Tests/InfrastructureTests"
+            path: "Tests/InfrastructureTests",
+            swiftSettings: [
+                .define("MOCKING")
+            ]
         ),
 
         // App Layer
