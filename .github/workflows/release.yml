@@ -29,7 +29,7 @@ permissions:
 env:
   APP_NAME: SkillsManager
   BUNDLE_ID: com.tddworks.skillsmanager
-  SWIFT_VERSION: "6.0"
+  SWIFT_VERSION: "6.2"
 
 jobs:
   release:

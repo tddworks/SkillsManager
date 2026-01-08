@@ -13,7 +13,7 @@ let project = Project(
     ],
     settings: .settings(
         base: [
-            "SWIFT_VERSION": "6.0",
+            "SWIFT_VERSION": "6.2",
             "MACOSX_DEPLOYMENT_TARGET": "15.0",
             "ENABLE_DEBUG_DYLIB": "YES",
         ],

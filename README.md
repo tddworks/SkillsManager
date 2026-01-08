@@ -3,7 +3,7 @@
 [![Build](https://github.com/tddworks/SkillsManager/actions/workflows/build.yml/badge.svg)](https://github.com/tddworks/SkillsManager/actions/workflows/build.yml)
 [![Tests](https://github.com/tddworks/SkillsManager/actions/workflows/tests.yml/badge.svg)](https://github.com/tddworks/SkillsManager/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/tddworks/SkillsManager/graph/badge.svg)](https://codecov.io/gh/tddworks/SkillsManager)
-[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%2015-blue.svg)](https://developer.apple.com)
 
 A macOS application for discovering, browsing, and installing skills for AI coding assistants. Manage skills for Claude Code and Codex from GitHub repositories or your local filesystem.
