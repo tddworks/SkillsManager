@@ -242,7 +242,10 @@ struct ClonedRepoSkillRepositoryTests {
         given(mockGit).isGitRepository(at: .any).willReturn(true)
         given(mockGit).pull(at: .any).willReturn()
 
-        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["not-a-skill", "valid-skill"])
+        // Root directory has two directories
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_mixed") }).willReturn(["not-a-skill", "valid-skill"])
+        // not-a-skill directory is empty (no subdirectories)
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("not-a-skill") }).willReturn([])
         given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skills") }).willReturn(false)
         given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("not-a-skill") }).willReturn(true)
         given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("valid-skill") }).willReturn(true)
@@ -320,5 +323,59 @@ struct ClonedRepoSkillRepositoryTests {
         let skill = try await repo.fetch(id: "non-existent")
 
         #expect(skill == nil)
+    }
+
+    // MARK: - Delete Clone Tests
+
+    @Test func `deleteClone removes cloned directory`() throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn(true)
+        given(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn()
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        try repo.deleteClone()
+
+        verify(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("owner_repo") }).called(1)
+    }
+
+    @Test func `deleteClone does nothing if directory does not exist`() throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(false)
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        try repo.deleteClone()
+
+        verify(mockFileManager).removeItem(atPath: .any).called(0)
+    }
+
+    @Test func `static deleteClone removes directory by URL`() throws {
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("anthropics_skills") }).willReturn(true)
+        given(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("anthropics_skills") }).willReturn()
+
+        try ClonedRepoSkillRepository.deleteClone(
+            forRepoUrl: "https://github.com/anthropics/skills",
+            cacheDirectory: "/cache",
+            fileManager: mockFileManager
+        )
+
+        verify(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("anthropics_skills") }).called(1)
     }
 }

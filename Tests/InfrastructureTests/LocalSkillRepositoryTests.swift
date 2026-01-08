@@ -212,4 +212,8 @@ final class MockFileManager: FileManagerProtocol, @unchecked Sendable {
         }
         return false
     }
+
+    func removeItem(atPath path: String) throws {
+        // Not needed for these tests
+    }
 }

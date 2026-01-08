@@ -34,6 +34,9 @@ struct SidebarView: View {
                 repositories: appState.repositories,
                 onAddRepo: {
                     appState.showingAddRepoSheet = true
+                },
+                onRemoveRepo: { repo in
+                    appState.removeRepository(repo)
                 }
             )
             .padding(.horizontal)

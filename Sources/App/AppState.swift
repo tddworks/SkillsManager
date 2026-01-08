@@ -121,9 +121,17 @@ public final class AppState {
         Task { await loadSkills() }
     }
 
-    /// Remove a repository
+    /// Remove a repository and delete its cached clone
     public func removeRepository(_ repo: SkillsRepo) {
         repositories.removeAll { $0.id == repo.id }
+
+        // Delete the cloned repository from cache
+        do {
+            try ClonedRepoSkillRepository.deleteClone(forRepoUrl: repo.url)
+            print("[AppState] Deleted cached clone for: \(repo.name)")
+        } catch {
+            print("[AppState] Failed to delete cached clone for \(repo.name): \(error)")
+        }
 
         // If we were viewing that repo, switch to local
         if case .remote(let repoId) = selectedSource, repoId == repo.id {
@@ -180,11 +188,11 @@ public final class AppState {
                 }
             }
 
-            // Load remote skills from all repositories
+            // Load remote skills from all repositories using git clone
             for repo in repositories {
                 do {
-                    print("[AppState] Loading skills from: \(repo.name) (\(repo.url))")
-                    let remoteRepo = GitHubSkillRepository(repoUrl: repo.url)
+                    print("[AppState] Loading skills from: \(repo.name) (\(repo.url)) via git clone")
+                    let remoteRepo = ClonedRepoSkillRepository(repoUrl: repo.url)
                     let remoteSkills = try await remoteRepo.fetchAll()
                     print("[AppState] Found \(remoteSkills.count) skills in \(repo.name)")
 
@@ -211,16 +219,16 @@ public final class AppState {
                 } catch {
                     // Show error to user but continue with other repos
                     let errorDesc: String
-                    if let gitError = error as? GitHubClientError {
+                    if let gitError = error as? GitCLIError {
                         switch gitError {
-                        case .rateLimited:
-                            errorDesc = "GitHub API rate limit exceeded. Try again in an hour."
-                        case .networkError(let underlying):
-                            errorDesc = "Network error: \(underlying.localizedDescription)"
-                        case .fileNotFound:
-                            errorDesc = "Repository structure not recognized."
+                        case .cloneFailed(let message):
+                            errorDesc = "Clone failed: \(message)"
+                        case .pullFailed(let message):
+                            errorDesc = "Pull failed: \(message)"
+                        case .gitNotInstalled:
+                            errorDesc = "Git is not installed. Please install git to use remote repositories."
                         default:
-                            errorDesc = "Failed to load: \(error.localizedDescription)"
+                            errorDesc = "Git error: \(error.localizedDescription)"
                         }
                     } else {
                         errorDesc = "Failed to load: \(error.localizedDescription)"

@@ -170,4 +170,8 @@ final class StubFileManager: FileManagerProtocol, @unchecked Sendable {
     func contents(atPath path: String) -> Data? {
         contentsStubs[path]
     }
+
+    func removeItem(atPath path: String) throws {
+        // Not needed for these tests
+    }
 }

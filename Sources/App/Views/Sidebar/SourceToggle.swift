@@ -5,6 +5,7 @@ struct SourcePicker: View {
     @Binding var selection: SourceFilter
     let repositories: [SkillsRepo]
     let onAddRepo: () -> Void
+    let onRemoveRepo: (SkillsRepo) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,10 +30,25 @@ struct SourcePicker: View {
 
                 Divider()
 
-                // Remote repositories
+                // Remote repositories with remove option
                 ForEach(repositories) { repo in
-                    Button {
-                        selection = .remote(repoId: repo.id)
+                    Menu {
+                        Button {
+                            selection = .remote(repoId: repo.id)
+                        } label: {
+                            Label("Select", systemImage: "checkmark.circle")
+                        }
+
+                        // Don't allow removing the default Anthropic skills repo
+                        if repo.id != SkillsRepo.anthropicSkills.id {
+                            Divider()
+
+                            Button(role: .destructive) {
+                                onRemoveRepo(repo)
+                            } label: {
+                                Label("Remove Repository", systemImage: "trash")
+                            }
+                        }
                     } label: {
                         HStack {
                             Label(repo.name, systemImage: "cloud")

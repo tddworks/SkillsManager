@@ -69,10 +69,20 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
         // Determine where skills are located
         let searchPath = findSkillsDirectory()
 
-        // Get all directories in the search path
-        let contents = try fileManager.contentsOfDirectory(atPath: searchPath)
-
+        // Recursively find all skills
         var skills: [Skill] = []
+        findSkillsRecursively(in: searchPath, skills: &skills)
+
+        return skills.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Recursively search for SKILL.md files in directories
+    private func findSkillsRecursively(in path: String, skills: inout [Skill], maxDepth: Int = 3, currentDepth: Int = 0) {
+        guard currentDepth < maxDepth else { return }
+
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
+            return
+        }
 
         for item in contents {
             // Skip hidden directories
@@ -80,35 +90,33 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
                 continue
             }
 
-            let itemPath = (searchPath as NSString).appendingPathComponent(item)
+            let itemPath = (path as NSString).appendingPathComponent(item)
 
             // Skip non-directories
             guard fileManager.isDirectory(atPath: itemPath) else {
                 continue
             }
 
-            // Check for SKILL.md
+            // Check for SKILL.md in this directory
             let skillFilePath = (itemPath as NSString).appendingPathComponent("SKILL.md")
 
-            guard let data = fileManager.contents(atPath: skillFilePath),
-                  let content = String(data: data, encoding: .utf8) else {
-                continue
-            }
-
-            do {
-                let skill = try SkillParser.parse(
-                    content: content,
-                    id: item,
-                    source: .remote(repoUrl: repoUrl)
-                )
-                skills.append(skill)
-            } catch {
-                // Skip invalid skills
-                continue
+            if let data = fileManager.contents(atPath: skillFilePath),
+               let content = String(data: data, encoding: .utf8) {
+                do {
+                    let skill = try SkillParser.parse(
+                        content: content,
+                        id: item,
+                        source: .remote(repoUrl: repoUrl)
+                    )
+                    skills.append(skill)
+                } catch {
+                    // Skip invalid skills
+                }
+            } else {
+                // No SKILL.md here, search subdirectories
+                findSkillsRecursively(in: itemPath, skills: &skills, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             }
         }
-
-        return skills.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     public func fetch(id: String) async throws -> Skill? {
@@ -137,6 +145,29 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
         }
 
         return nil
+    }
+
+    // MARK: - Cache Management
+
+    /// Delete the cloned repository from cache
+    public func deleteClone() throws {
+        if fileManager.isDirectory(atPath: localPath) {
+            try fileManager.removeItem(atPath: localPath)
+        }
+    }
+
+    /// Delete a cloned repository by URL (static helper)
+    public static func deleteClone(
+        forRepoUrl url: String,
+        cacheDirectory: String = ClonedRepoSkillRepository.defaultCacheDirectory,
+        fileManager: FileManagerProtocol = RealFileManager.shared
+    ) throws {
+        let (owner, repo) = parseGitHubURL(url)
+        let localPath = "\(cacheDirectory)/\(owner)_\(repo)"
+
+        if fileManager.isDirectory(atPath: localPath) {
+            try fileManager.removeItem(atPath: localPath)
+        }
     }
 
     // MARK: - Private Helpers
