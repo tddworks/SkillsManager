@@ -4,49 +4,81 @@ import Domain
 struct SkillRowView: View {
     let skill: Skill
 
+    @State private var isHovering = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Name
-            Text(skill.name)
-                .font(.headline)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            // Name with installed indicator
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                Text(skill.name)
+                    .font(DesignSystem.Typography.headline)
+                    .foregroundStyle(DesignSystem.Colors.primaryText)
+                    .lineLimit(1)
+
+                if skill.isInstalled {
+                    Circle()
+                        .fill(DesignSystem.Colors.success)
+                        .frame(width: 6, height: 6)
+                }
+
+                Spacer(minLength: 0)
+            }
 
             // Description
             Text(skill.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DesignSystem.Typography.bodySecondary)
+                .foregroundStyle(DesignSystem.Colors.secondaryText)
                 .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             // Tags row
-            HStack(spacing: 4) {
+            HStack(spacing: DesignSystem.Spacing.xs) {
                 // Version badge
-                Badge(text: "v\(skill.version)", color: .gray)
+                RefinedBadge(text: "v\(skill.version)", style: .version)
 
                 // Provider badges
                 ForEach(Array(skill.installedProviders), id: \.self) { provider in
-                    Badge(text: provider.displayName, color: providerColor(provider))
+                    RefinedBadge(
+                        text: provider.displayName,
+                        style: provider == .claude ? .claude : .codex
+                    )
                 }
 
-                // Reference/script badges
+                // Reference count
                 if skill.hasReferences {
-                    Badge(text: "\(skill.referenceCount) reference\(skill.referenceCount == 1 ? "" : "s")", color: .purple)
+                    RefinedBadge(
+                        text: "\(skill.referenceCount) ref\(skill.referenceCount == 1 ? "" : "s")",
+                        style: .info
+                    )
                 }
 
+                // Script count
                 if skill.hasScripts {
-                    Badge(text: "\(skill.scriptCount) script\(skill.scriptCount == 1 ? "" : "s")", color: .orange)
+                    HStack(spacing: 3) {
+                        Image(systemName: "terminal")
+                            .font(.system(size: 8, weight: .semibold))
+                        Text("\(skill.scriptCount)")
+                            .font(DesignSystem.Typography.micro)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.15))
+                    .foregroundStyle(.orange)
+                    .clipShape(Capsule())
                 }
             }
         }
-        .padding(.vertical, 4)
-    }
-
-    private func providerColor(_ provider: Provider) -> Color {
-        switch provider {
-        case .codex: return .green
-        case .claude: return .blue
+        .padding(.vertical, DesignSystem.Spacing.xs)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.quick) {
+                isHovering = hovering
+            }
         }
     }
 }
+
+// MARK: - Legacy Badge (kept for compatibility, but prefer RefinedBadge)
 
 struct Badge: View {
     let text: String
@@ -54,11 +86,11 @@ struct Badge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2.weight(.medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.2))
+            .font(DesignSystem.Typography.micro)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.15))
             .foregroundStyle(color)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(Capsule())
     }
 }

@@ -3,32 +3,55 @@ import Domain
 
 struct InstallSheet: View {
     let skill: Skill
-    @Bindable var appState: AppState
+    @Bindable var library: SkillLibrary
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedProviders: Set<Provider> = []
+    @State private var isInstalling = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            VStack(spacing: 8) {
-                Image(systemName: "square.and.arrow.down.on.square")
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.accentColor)
+            VStack(spacing: DesignSystem.Spacing.md) {
+                // Icon with subtle gradient background
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    DesignSystem.Colors.accent.opacity(0.2),
+                                    DesignSystem.Colors.accent.opacity(0.05)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 64, height: 64)
 
-                Text("Install Skill")
-                    .font(.title2.weight(.semibold))
+                    Image(systemName: "square.and.arrow.down.on.square")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                }
 
-                Text("Choose where to install **\(skill.name)**")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: DesignSystem.Spacing.xs) {
+                    Text("Install Skill")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(DesignSystem.Colors.primaryText)
+
+                    Text("Choose where to install")
+                        .font(DesignSystem.Typography.bodySecondary)
+                        .foregroundStyle(DesignSystem.Colors.secondaryText)
+
+                    Text(skill.name)
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                }
             }
-            .padding(.top, 24)
-            .padding(.bottom, 20)
+            .padding(.top, DesignSystem.Spacing.xxl)
+            .padding(.bottom, DesignSystem.Spacing.xl)
 
             // Provider cards
-            VStack(spacing: 10) {
+            VStack(spacing: DesignSystem.Spacing.sm) {
                 ForEach(Provider.allCases, id: \.self) { provider in
                     ProviderCard(
                         provider: provider,
@@ -39,128 +62,157 @@ struct InstallSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DesignSystem.Spacing.xl)
 
             Spacer()
 
             // Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 Button {
                     dismiss()
                 } label: {
                     Text("Cancel")
+                        .font(DesignSystem.Typography.headline)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, DesignSystem.Spacing.sm)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
                 .keyboardShortcut(.cancelAction)
 
                 Button {
+                    isInstalling = true
                     Task {
-                        await appState.install(to: selectedProviders)
+                        await library.install(to: selectedProviders)
+                        isInstalling = false
                         dismiss()
                     }
                 } label: {
-                    Text("Install")
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        if isInstalling {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        }
+                        Text(isInstalling ? "Installing..." : "Install")
+                            .font(DesignSystem.Typography.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.sm)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
-                .disabled(selectedProviders.isEmpty)
+                .disabled(selectedProviders.isEmpty || isInstalling)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            .padding(.horizontal, DesignSystem.Spacing.xl)
+            .padding(.bottom, DesignSystem.Spacing.xl)
         }
-        .frame(width: 340, height: 340)
+        .frame(width: 360, height: 380)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             selectedProviders = Set(Provider.allCases.filter { !skill.isInstalledFor($0) })
         }
     }
 
     private func toggleProvider(_ provider: Provider) {
-        if selectedProviders.contains(provider) {
-            selectedProviders.remove(provider)
-        } else {
-            selectedProviders.insert(provider)
+        withAnimation(DesignSystem.Animation.quick) {
+            if selectedProviders.contains(provider) {
+                selectedProviders.remove(provider)
+            } else {
+                selectedProviders.insert(provider)
+            }
         }
     }
 }
 
-/// Modern card-style provider selection
+// MARK: - Provider Card
+
 struct ProviderCard: View {
     let provider: Provider
     let isSelected: Bool
     let isAlreadyInstalled: Bool
     let onToggle: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         Button(action: onToggle) {
-            HStack(spacing: 14) {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 // Provider icon
                 ZStack {
-                    Circle()
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
                         .fill(iconBackgroundColor)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
 
                     Image(systemName: providerIcon)
-                        .font(.system(size: 18))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(iconColor)
                 }
 
                 // Provider info
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack {
+                    HStack(spacing: DesignSystem.Spacing.sm) {
                         Text(provider.displayName)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(isAlreadyInstalled ? .secondary : .primary)
+                            .font(DesignSystem.Typography.headline)
+                            .foregroundStyle(isAlreadyInstalled ? DesignSystem.Colors.secondaryText : DesignSystem.Colors.primaryText)
 
                         if isAlreadyInstalled {
-                            Text("Installed")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.green.opacity(0.15))
-                                .foregroundStyle(.green)
-                                .clipShape(Capsule())
+                            RefinedBadge(text: "Installed", style: .success)
                         }
                     }
 
                     Text(shortenedPath)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.tertiaryText)
                         .lineLimit(1)
                 }
 
                 Spacer()
 
-                // Toggle/Checkbox
+                // Checkbox
                 ZStack {
                     Circle()
                         .stroke(borderColor, lineWidth: 2)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
 
                     if isSelected || isAlreadyInstalled {
                         Circle()
                             .fill(fillColor)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 22, height: 22)
 
                         Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                     }
                 }
             }
-            .padding(14)
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected && !isAlreadyInstalled ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 2)
+            .padding(DesignSystem.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.large, style: .continuous)
+                    .fill(DesignSystem.Colors.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large, style: .continuous)
+                            .stroke(
+                                isSelected && !isAlreadyInstalled ? DesignSystem.Colors.accent.opacity(0.5) :
+                                    (isHovering && !isAlreadyInstalled ? DesignSystem.Colors.subtleBorder : .clear),
+                                lineWidth: isSelected && !isAlreadyInstalled ? 2 : 1
+                            )
+                    )
+            )
+            .shadow(
+                color: isHovering && !isAlreadyInstalled ? DesignSystem.Shadows.subtle.color : .clear,
+                radius: DesignSystem.Shadows.subtle.radius,
+                y: DesignSystem.Shadows.subtle.y
             )
         }
         .buttonStyle(.plain)
         .disabled(isAlreadyInstalled)
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.quick) {
+                isHovering = hovering
+            }
+        }
     }
 
     private var providerIcon: String {
@@ -172,29 +224,25 @@ struct ProviderCard: View {
 
     private var iconBackgroundColor: Color {
         switch provider {
-        case .codex: return .green.opacity(0.15)
-        case .claude: return .blue.opacity(0.15)
+        case .codex: return DesignSystem.Colors.codexGreen.opacity(0.15)
+        case .claude: return DesignSystem.Colors.claudeBlue.opacity(0.15)
         }
     }
 
     private var iconColor: Color {
         switch provider {
-        case .codex: return .green
-        case .claude: return .blue
+        case .codex: return DesignSystem.Colors.codexGreen
+        case .claude: return DesignSystem.Colors.claudeBlue
         }
     }
 
     private var borderColor: Color {
-        if isAlreadyInstalled { return .gray.opacity(0.3) }
-        return isSelected ? .accentColor : .gray.opacity(0.4)
+        if isAlreadyInstalled { return DesignSystem.Colors.tertiaryText.opacity(0.3) }
+        return isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.tertiaryText.opacity(0.4)
     }
 
     private var fillColor: Color {
-        isAlreadyInstalled ? .gray.opacity(0.5) : .accentColor
-    }
-
-    private var cardBackground: Color {
-        Color(nsColor: .controlBackgroundColor)
+        isAlreadyInstalled ? DesignSystem.Colors.tertiaryText.opacity(0.5) : DesignSystem.Colors.accent
     }
 
     private var shortenedPath: String {

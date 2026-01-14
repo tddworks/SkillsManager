@@ -1,7 +1,7 @@
 import SwiftUI
 import Markdown
 
-/// Renders markdown content as styled SwiftUI views
+/// Renders markdown content as styled SwiftUI views with refined typography
 struct MarkdownView: View {
     let content: String
 
@@ -18,7 +18,7 @@ struct MarkdownRenderer: View {
     let document: Document
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             ForEach(Array(document.children.enumerated()), id: \.offset) { _, child in
                 renderBlock(child)
             }
@@ -47,17 +47,19 @@ struct MarkdownRenderer: View {
             BlockQuoteView(blockQuote: blockQuote)
 
         case _ as ThematicBreak:
-            Divider()
-                .padding(.vertical, 8)
+            Rectangle()
+                .fill(DesignSystem.Colors.subtleBorder)
+                .frame(height: 1)
+                .padding(.vertical, DesignSystem.Spacing.md)
 
         case let htmlBlock as HTMLBlock:
             Text(htmlBlock.rawHTML)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(DesignSystem.Typography.code)
+                .foregroundStyle(DesignSystem.Colors.secondaryText)
 
         default:
             Text(markup.format())
-                .font(.body)
+                .font(DesignSystem.Typography.body)
         }
     }
 }
@@ -70,18 +72,28 @@ struct HeadingView: View {
     var body: some View {
         Text(heading.plainText)
             .font(fontForLevel(heading.level))
-            .fontWeight(.bold)
-            .padding(.top, heading.level == 1 ? 0 : 8)
+            .fontWeight(.semibold)
+            .foregroundStyle(DesignSystem.Colors.primaryText)
+            .padding(.top, topPadding)
+            .padding(.bottom, DesignSystem.Spacing.xs)
     }
 
     private func fontForLevel(_ level: Int) -> Font {
         switch level {
-        case 1: return .largeTitle
-        case 2: return .title
-        case 3: return .title2
-        case 4: return .title3
-        case 5: return .headline
-        default: return .subheadline
+        case 1: return .system(size: 24, weight: .bold, design: .rounded)
+        case 2: return .system(size: 20, weight: .semibold, design: .rounded)
+        case 3: return .system(size: 17, weight: .semibold, design: .rounded)
+        case 4: return .system(size: 15, weight: .semibold, design: .default)
+        case 5: return .system(size: 14, weight: .semibold, design: .default)
+        default: return .system(size: 13, weight: .semibold, design: .default)
+        }
+    }
+
+    private var topPadding: CGFloat {
+        switch heading.level {
+        case 1: return DesignSystem.Spacing.sm
+        case 2: return DesignSystem.Spacing.lg
+        default: return DesignSystem.Spacing.md
         }
     }
 }
@@ -91,8 +103,9 @@ struct ParagraphView: View {
 
     var body: some View {
         Text(attributedString(for: paragraph))
-            .font(.body)
-            .lineSpacing(4)
+            .font(DesignSystem.Typography.body)
+            .lineSpacing(5)
+            .foregroundStyle(DesignSystem.Colors.primaryText)
     }
 
     private func attributedString(for paragraph: Paragraph) -> AttributedString {
@@ -112,23 +125,24 @@ struct ParagraphView: View {
 
         case let strong as Strong:
             var attr = AttributedString(strong.plainText)
-            attr.font = .body.bold()
+            attr.font = .system(size: 13, weight: .semibold)
             return attr
 
         case let emphasis as Emphasis:
             var attr = AttributedString(emphasis.plainText)
-            attr.font = .body.italic()
+            attr.font = .system(size: 13).italic()
             return attr
 
         case let code as InlineCode:
             var attr = AttributedString(code.code)
-            attr.font = .system(.body, design: .monospaced)
-            attr.backgroundColor = Color(nsColor: .quaternaryLabelColor)
+            attr.font = DesignSystem.Typography.code
+            attr.backgroundColor = DesignSystem.Colors.badgeBackground
             return attr
 
         case let link as Markdown.Link:
             var attr = AttributedString(link.plainText)
-            attr.foregroundColor = .accentColor
+            attr.foregroundColor = DesignSystem.Colors.accent
+            attr.underlineStyle = .single
             if let url = link.destination {
                 attr.link = URL(string: url)
             }
@@ -149,31 +163,60 @@ struct ParagraphView: View {
 struct CodeBlockView: View {
     let codeBlock: CodeBlock
 
+    @State private var isHovering = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Language label if present
             if let language = codeBlock.language, !language.isEmpty {
-                Text(language)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
+                HStack {
+                    Text(language.uppercased())
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.tertiaryText)
+                    Spacer()
+
+                    // Copy button on hover
+                    if isHovering {
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(codeBlock.code, forType: .string)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(DesignSystem.Colors.tertiaryText)
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.opacity)
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.top, DesignSystem.Spacing.sm)
+                .padding(.bottom, DesignSystem.Spacing.xs)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(codeBlock.code.trimmingCharacters(in: .whitespacesAndNewlines))
-                    .font(.system(.body, design: .monospaced))
+                    .font(DesignSystem.Typography.code)
+                    .foregroundStyle(DesignSystem.Colors.primaryText)
                     .textSelection(.enabled)
-                    .padding(12)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    .padding(.vertical, DesignSystem.Spacing.md)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
+                        .stroke(DesignSystem.Colors.subtleBorder, lineWidth: 1)
+                )
         )
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.quick) {
+                isHovering = hovering
+            }
+        }
     }
 }
 
@@ -181,13 +224,16 @@ struct UnorderedListView: View {
     let list: UnorderedList
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             ForEach(Array(list.children.enumerated()), id: \.offset) { _, item in
                 if let listItem = item as? ListItem {
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("•")
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                        Circle()
+                            .fill(DesignSystem.Colors.tertiaryText)
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 6)
+
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                             ForEach(Array(listItem.children.enumerated()), id: \.offset) { _, child in
                                 if let para = child as? Paragraph {
                                     ParagraphView(paragraph: para)
@@ -198,7 +244,7 @@ struct UnorderedListView: View {
                 }
             }
         }
-        .padding(.leading, 8)
+        .padding(.leading, DesignSystem.Spacing.sm)
     }
 }
 
@@ -206,14 +252,16 @@ struct OrderedListView: View {
     let list: OrderedList
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             ForEach(Array(list.children.enumerated()), id: \.offset) { index, item in
                 if let listItem = item as? ListItem {
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
                         Text("\(index + 1).")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, alignment: .trailing)
-                        VStack(alignment: .leading, spacing: 4) {
+                            .font(DesignSystem.Typography.body)
+                            .foregroundStyle(DesignSystem.Colors.secondaryText)
+                            .frame(width: 20, alignment: .trailing)
+
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                             ForEach(Array(listItem.children.enumerated()), id: \.offset) { _, child in
                                 if let para = child as? Paragraph {
                                     ParagraphView(paragraph: para)
@@ -224,7 +272,7 @@ struct OrderedListView: View {
                 }
             }
         }
-        .padding(.leading, 8)
+        .padding(.leading, DesignSystem.Spacing.sm)
     }
 }
 
@@ -233,20 +281,20 @@ struct BlockQuoteView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Rectangle()
-                .fill(Color.accentColor.opacity(0.5))
-                .frame(width: 4)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(DesignSystem.Colors.accent.opacity(0.6))
+                .frame(width: 3)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 ForEach(Array(blockQuote.children.enumerated()), id: \.offset) { _, child in
                     if let para = child as? Paragraph {
                         ParagraphView(paragraph: para)
                     }
                 }
             }
-            .padding(.leading, 12)
+            .padding(.leading, DesignSystem.Spacing.md)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DesignSystem.Spacing.xs)
     }
 }
 

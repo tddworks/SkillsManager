@@ -7,11 +7,13 @@ struct SourcePicker: View {
     let onAddRepo: () -> Void
     let onRemoveRepo: (SkillsRepo) -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         HStack(spacing: 0) {
             Text("Source")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.tertiaryText)
 
             Spacer()
 
@@ -69,20 +71,43 @@ struct SourcePicker: View {
                 }
 
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: DesignSystem.Spacing.xs) {
+                    Image(systemName: sourceIcon)
+                        .font(.system(size: 10, weight: .semibold))
+
                     Text(currentSelectionLabel)
-                        .font(.subheadline.weight(.medium))
+                        .font(DesignSystem.Typography.caption)
+
                     Image(systemName: "chevron.down")
-                        .font(.caption)
+                        .font(.system(size: 8, weight: .bold))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.accentColor)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
+                        .fill(DesignSystem.Colors.accent)
+                )
                 .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .shadow(
+                    color: isHovering ? DesignSystem.Shadows.elevated.color : DesignSystem.Shadows.subtle.color,
+                    radius: isHovering ? DesignSystem.Shadows.elevated.radius : DesignSystem.Shadows.subtle.radius,
+                    y: isHovering ? DesignSystem.Shadows.elevated.y : DesignSystem.Shadows.subtle.y
+                )
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
+            .onHover { hovering in
+                withAnimation(DesignSystem.Animation.quick) {
+                    isHovering = hovering
+                }
+            }
+        }
+    }
+
+    private var sourceIcon: String {
+        switch selection {
+        case .local: return "internaldrive"
+        case .remote: return "cloud"
         }
     }
 
@@ -96,81 +121,129 @@ struct SourcePicker: View {
     }
 }
 
-/// Sheet for adding a new repository
+// MARK: - Add Repository Sheet
+
 struct AddRepositorySheet: View {
-    @Bindable var appState: AppState
+    @Bindable var library: SkillLibrary
     @Environment(\.dismiss) private var dismiss
 
     @State private var urlInput: String = ""
     @FocusState private var isURLFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Add Repository")
-                    .font(.title2.weight(.bold))
-                Text("Enter a GitHub repository URL containing skills.")
-                    .foregroundStyle(.secondary)
-            }
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DesignSystem.Colors.primaryText)
 
-            Divider()
+                Text("Enter a GitHub repository URL containing skills.")
+                    .font(DesignSystem.Typography.bodySecondary)
+                    .foregroundStyle(DesignSystem.Colors.secondaryText)
+            }
+            .padding(.bottom, DesignSystem.Spacing.lg)
+
+            // Subtle divider
+            Rectangle()
+                .fill(DesignSystem.Colors.subtleBorder)
+                .frame(height: 1)
+                .padding(.bottom, DesignSystem.Spacing.lg)
 
             // URL input
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 Text("GitHub URL")
-                    .font(.headline)
+                    .font(DesignSystem.Typography.headline)
+                    .foregroundStyle(DesignSystem.Colors.primaryText)
 
                 TextField("https://github.com/owner/repo", text: $urlInput)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .font(DesignSystem.Typography.body)
+                    .padding(DesignSystem.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
+                            .fill(DesignSystem.Colors.cardBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
+                                    .stroke(
+                                        isURLFocused ? DesignSystem.Colors.accent.opacity(0.5) : DesignSystem.Colors.subtleBorder,
+                                        lineWidth: 1
+                                    )
+                            )
+                    )
                     .focused($isURLFocused)
 
                 Text("The repository should contain skill folders with SKILL.md files.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
             }
+            .padding(.bottom, DesignSystem.Spacing.lg)
 
             // Example
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Examples:")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Examples")
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("• https://github.com/anthropics/skills")
-                    Text("• https://github.com/your-org/internal-skills")
+                VStack(alignment: .leading, spacing: 4) {
+                    exampleRow("anthropics/skills")
+                    exampleRow("your-org/internal-skills")
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             // Buttons
-            HStack {
-                Button("Cancel") {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                Button {
                     dismiss()
+                } label: {
+                    Text("Cancel")
+                        .font(DesignSystem.Typography.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DesignSystem.Spacing.sm)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
                 .keyboardShortcut(.cancelAction)
 
-                Spacer()
-
-                Button("Add") {
-                    appState.addRepository(url: urlInput)
+                Button {
+                    library.addRepository(url: urlInput)
+                } label: {
+                    Text("Add Repository")
+                        .font(DesignSystem.Typography.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DesignSystem.Spacing.sm)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .disabled(urlInput.isEmpty || !urlInput.contains("github.com"))
             }
         }
-        .padding(24)
-        .frame(width: 450, height: 320)
+        .padding(DesignSystem.Spacing.xxl)
+        .frame(width: 450, height: 340)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             isURLFocused = true
         }
     }
+
+    private func exampleRow(_ repo: String) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "link")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.tertiaryText)
+
+            Text("github.com/\(repo)")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.secondaryText)
+        }
+    }
 }
 
-/// Row showing a repository with remove option
+// MARK: - Repository Row
+
 struct RepositoryRow: View {
     let repo: SkillsRepo
     let isSelected: Bool
@@ -181,16 +254,19 @@ struct RepositoryRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 Image(systemName: "cloud")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.secondaryText)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(repo.name)
-                        .font(.body.weight(.medium))
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundStyle(DesignSystem.Colors.primaryText)
+
                     Text(repo.url)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.tertiaryText)
                         .lineLimit(1)
                 }
 
@@ -198,7 +274,8 @@ struct RepositoryRow: View {
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.accent)
                 }
 
                 if isHovering && repo.id != SkillsRepo.anthropicSkills.id {
@@ -206,16 +283,20 @@ struct RepositoryRow: View {
                         onRemove()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 14))
+                            .foregroundStyle(DesignSystem.Colors.tertiaryText)
                     }
                     .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isHovering = hovering
+            withAnimation(DesignSystem.Animation.quick) {
+                isHovering = hovering
+            }
         }
     }
 }
