@@ -76,6 +76,19 @@ let package = Package(
             swiftSettings: [
                 .define("ENABLE_SPARKLE")
             ]
+        ),
+        .testTarget(
+            name: "AppTests",
+            dependencies: [
+                "App",
+                "Domain",
+                "Infrastructure",
+                .product(name: "Mockable", package: "Mockable")
+            ],
+            path: "Tests/AppTests",
+            swiftSettings: [
+                .define("MOCKING")
+            ]
         )
     ],
     swiftLanguageModes: [.v6]

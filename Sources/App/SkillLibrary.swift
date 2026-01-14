@@ -91,17 +91,36 @@ public final class SkillLibrary {
         skills.filter { $0.source.isLocal }.count
     }
 
-    // MARK: - Repositories
+    // MARK: - Dependencies
 
-    private let claudeRepo: LocalSkillRepository
-    private let codexRepo: LocalSkillRepository
+    private let claudeRepo: SkillRepository
+    private let codexRepo: SkillRepository
+    private let installer: SkillInstaller
+    private let writerFactory: () -> SkillWriter
 
     // MARK: - Init
 
     public init() {
         self.claudeRepo = LocalSkillRepository(provider: .claude)
         self.codexRepo = LocalSkillRepository(provider: .codex)
+        self.installer = FileSystemSkillInstaller()
+        self.writerFactory = { LocalSkillWriter() }
         self.catalogs = Self.loadCatalogs()
+    }
+
+    /// Testable initializer with dependency injection
+    public init(
+        claudeRepo: SkillRepository,
+        codexRepo: SkillRepository,
+        installer: SkillInstaller,
+        writerFactory: @escaping () -> SkillWriter = { LocalSkillWriter() },
+        catalogs: [SkillsCatalog] = []
+    ) {
+        self.claudeRepo = claudeRepo
+        self.codexRepo = codexRepo
+        self.installer = installer
+        self.writerFactory = writerFactory
+        self.catalogs = catalogs
     }
 
     // MARK: - Catalog Management
@@ -267,7 +286,6 @@ public final class SkillLibrary {
         isLoading = true
 
         do {
-            let installer = FileSystemSkillInstaller()
             let updatedSkill = try await installer.install(skill, to: providers)
 
             // Update installedProviders on all matching skills (remote views)
@@ -318,7 +336,6 @@ public final class SkillLibrary {
         isLoading = true
 
         do {
-            let installer = FileSystemSkillInstaller()
             let updatedSkill = try await installer.uninstall(skill, from: provider)
 
             // Update installedProviders on all matching skills
@@ -355,8 +372,7 @@ public final class SkillLibrary {
     /// Start editing the selected skill
     public func startEditing() {
         guard let skill = selectedSkill, skill.isEditable else { return }
-        let writer = LocalSkillWriter()
-        skillEditor = SkillEditor(skill: skill, writer: writer)
+        skillEditor = SkillEditor(skill: skill, writer: writerFactory())
     }
 
     /// Cancel editing and discard changes
