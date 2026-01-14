@@ -2,7 +2,111 @@
 
 ## User's Mental Model
 
-Domain models should match how users think about the domain:
+Domain models should match how users think about the domain. The key insight is that **objects own their data and behavior together**.
+
+## Tell-Don't-Ask Principle
+
+Instead of asking an object for data and acting on that data, tell the object what to do:
+
+```swift
+// BAD: Asking for data
+for index in catalog.skills.indices {
+    if catalog.skills[index].uniqueKey == uniqueKey {
+        catalog.skills[index] = catalog.skills[index].withInstalledProviders(providers)
+    }
+}
+
+// GOOD: Telling the object
+catalog.updateInstallationStatus(for: uniqueKey, to: providers)
+```
+
+## Rich Domain Classes (Observable)
+
+For stateful domain concepts that own collections, use `@Observable` classes:
+
+```swift
+@Observable
+@MainActor
+public final class SkillsCatalog: Identifiable {
+    public let id: UUID
+    public let url: String?
+    public let name: String
+
+    // Catalog OWNS its skills
+    public var skills: [Skill] = []
+    public var isLoading: Bool = false
+    public var errorMessage: String?
+
+    private let loader: SkillRepository
+
+    // Tell-Don't-Ask: catalog manages its own skills
+    public func loadSkills() async {
+        isLoading = true
+        do {
+            skills = try await loader.fetchAll()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    public func addSkill(_ skill: Skill) {
+        guard !skills.contains(where: { $0.uniqueKey == skill.uniqueKey }) else { return }
+        skills.append(skill)
+        skills.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func removeSkill(uniqueKey: String) {
+        skills.removeAll { $0.uniqueKey == uniqueKey }
+    }
+
+    public func updateInstallationStatus(for uniqueKey: String, to providers: Set<Provider>) {
+        for index in skills.indices {
+            if skills[index].uniqueKey == uniqueKey {
+                skills[index] = skills[index].withInstalledProviders(providers)
+            }
+        }
+    }
+}
+```
+
+## Coordinating Classes
+
+For classes that coordinate multiple domain objects:
+
+```swift
+@Observable
+@MainActor
+public final class SkillLibrary {
+    // Library HAS catalogs
+    public let localCatalog: SkillsCatalog
+    public var remoteCatalogs: [SkillsCatalog] = []
+
+    // Computed: all catalogs for iteration
+    public var catalogs: [SkillsCatalog] {
+        [localCatalog] + remoteCatalogs
+    }
+
+    // Computed: current catalog's skills filtered
+    public var filteredSkills: [Skill] {
+        selectedCatalog.skills.filter { $0.matches(query: searchQuery) }
+    }
+
+    // Tell catalogs what to do
+    public func install(to providers: Set<Provider>) async {
+        guard let skill = selectedSkill else { return }
+        let updatedSkill = try await installer.install(skill, to: providers)
+
+        // Tell each catalog to update
+        localCatalog.updateInstallationStatus(for: skill.uniqueKey, to: updatedSkill.installedProviders)
+        for catalog in remoteCatalogs {
+            catalog.updateInstallationStatus(for: skill.uniqueKey, to: updatedSkill.installedProviders)
+        }
+    }
+}
+```
+
+## Value Objects vs Behavior
 
 ```swift
 // User thinks: "What's my order status?"
