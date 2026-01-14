@@ -180,19 +180,19 @@ public final class SkillLibrary {
 
             let (claude, codex) = try await (claudeSkills, codexSkills)
 
-            // Merge local skills
+            // Merge local skills - use uniqueKey for matching with remote
             var merged: [String: Skill] = [:]
 
             for skill in claude {
-                merged[skill.id] = skill.installing(for: .claude)
+                merged[skill.uniqueKey] = skill.installing(for: .claude)
             }
 
             for skill in codex {
-                if var existing = merged[skill.id] {
+                if var existing = merged[skill.uniqueKey] {
                     existing = existing.installing(for: .codex)
-                    merged[skill.id] = existing
+                    merged[skill.uniqueKey] = existing
                 } else {
-                    merged[skill.id] = skill.installing(for: .codex)
+                    merged[skill.uniqueKey] = skill.installing(for: .codex)
                 }
             }
 
