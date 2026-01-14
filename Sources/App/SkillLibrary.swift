@@ -33,8 +33,10 @@ public final class SkillLibrary {
 
     // MARK: - Loading State
 
-    /// Loading state
-    public var isLoading: Bool = false
+    /// Loading state - computed from selected catalog
+    public var isLoading: Bool {
+        selectedCatalog.isLoading
+    }
 
     /// Error message
     public var errorMessage: String?
@@ -203,7 +205,6 @@ public final class SkillLibrary {
 
     /// Load skills from all catalogs
     public func loadSkills() async {
-        isLoading = true
         errorMessage = nil
 
         // Load all catalogs in parallel
@@ -217,8 +218,6 @@ public final class SkillLibrary {
 
         // Sync installation status on remote catalog skills
         syncInstallationStatus()
-
-        isLoading = false
     }
 
     /// Refresh skills
@@ -235,8 +234,6 @@ public final class SkillLibrary {
     public func install(to providers: Set<Provider>) async {
         guard let skill = selectedSkill else { return }
 
-        isLoading = true
-
         do {
             let updatedSkill = try await installer.install(skill, to: providers)
 
@@ -247,15 +244,11 @@ public final class SkillLibrary {
         } catch {
             errorMessage = "Installation failed: \(error.localizedDescription)"
         }
-
-        isLoading = false
     }
 
     /// Uninstall selected skill from a provider
     public func uninstall(from provider: Provider) async {
         guard let skill = selectedSkill else { return }
-
-        isLoading = true
 
         do {
             let updatedSkill = try await installer.uninstall(skill, from: provider)
@@ -271,8 +264,6 @@ public final class SkillLibrary {
         } catch {
             errorMessage = "Uninstall failed: \(error.localizedDescription)"
         }
-
-        isLoading = false
     }
 
     // MARK: - Installation Status Sync
