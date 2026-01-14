@@ -40,6 +40,12 @@ public struct SkillsCatalog: Sendable, Equatable, Identifiable, Hashable, Codabl
     public var isValid: Bool {
         url.contains("github.com") && url.contains("/")
     }
+
+    /// Whether this is an official Anthropic catalog
+    /// User thinks: "Is this the official catalog?"
+    public var isOfficial: Bool {
+        id == SkillsCatalog.anthropicSkills.id
+    }
 }
 
 /// Default catalogs

@@ -81,12 +81,8 @@ public final class SkillLibrary {
                 }
             }
 
-            // Filter by search
-            let matchesSearch = searchQuery.isEmpty ||
-                skill.name.localizedCaseInsensitiveContains(searchQuery) ||
-                skill.description.localizedCaseInsensitiveContains(searchQuery)
-
-            return matchesSource && matchesSearch
+            // Filter by search - delegated to domain model
+            return matchesSource && skill.matches(query: searchQuery)
         }
     }
 
@@ -209,20 +205,8 @@ public final class SkillLibrary {
                         let key = "\(catalog.id)-\(skill.uniqueKey)"
                         // Match by uniqueKey to sync installation status
                         if let existing = merged[skill.uniqueKey] {
-                            // Mark remote version with installation status from local
-                            let remoteVersion = Skill(
-                                id: skill.id,
-                                name: skill.name,
-                                description: skill.description,
-                                version: skill.version,
-                                content: skill.content,
-                                source: skill.source,
-                                repoPath: skill.repoPath,
-                                installedProviders: existing.installedProviders,
-                                referenceCount: skill.referenceCount,
-                                scriptCount: skill.scriptCount
-                            )
-                            merged[key] = remoteVersion
+                            // Merge remote skill with local installation status
+                            merged[key] = skill.withInstalledProviders(existing.installedProviders)
                         } else {
                             merged[key] = skill
                         }

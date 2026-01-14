@@ -114,6 +114,36 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         installedProviders.contains(provider)
     }
 
+    // MARK: - Rich Installation Status (User Mental Model)
+
+    /// Providers where this skill can still be installed
+    /// User thinks: "Where else can I install this?"
+    public var availableProviders: Set<Provider> {
+        Set(Provider.allCases).subtracting(installedProviders)
+    }
+
+    /// Whether this skill is installed in all available providers
+    /// User thinks: "Is this installed everywhere?"
+    public var isFullyInstalled: Bool {
+        installedProviders.count == Provider.allCases.count
+    }
+
+    /// Whether this skill can be installed to at least one more provider
+    /// User thinks: "Can I install this somewhere?"
+    public var canBeInstalled: Bool {
+        !availableProviders.isEmpty
+    }
+
+    // MARK: - Search (User Mental Model)
+
+    /// Check if skill matches a search query
+    /// User thinks: "Does this skill match my search?"
+    public func matches(query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        return name.localizedCaseInsensitiveContains(query) ||
+               description.localizedCaseInsensitiveContains(query)
+    }
+
     // MARK: - Mutation Methods
 
     /// Returns a copy with the provider added to installed providers
@@ -141,6 +171,23 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
             source: source,
             repoPath: repoPath,
             installedProviders: installedProviders,
+            referenceCount: referenceCount,
+            scriptCount: scriptCount
+        )
+    }
+
+    /// Returns a copy with the specified installed providers
+    /// User thinks: "This remote skill is actually installed locally"
+    public func withInstalledProviders(_ providers: Set<Provider>) -> Skill {
+        Skill(
+            id: id,
+            name: name,
+            description: description,
+            version: version,
+            content: content,
+            source: source,
+            repoPath: repoPath,
+            installedProviders: providers,
             referenceCount: referenceCount,
             scriptCount: scriptCount
         )

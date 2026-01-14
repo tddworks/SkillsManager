@@ -69,6 +69,193 @@ struct SkillTests {
         #expect(skill.isInstalledFor(.claude) == true)
     }
 
+    // MARK: - Rich Installation Status (User Mental Model)
+
+    @Test func `availableProviders returns providers not yet installed`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude]
+        )
+
+        // User thinks: "Where else can I install this?"
+        #expect(skill.availableProviders == [.codex])
+    }
+
+    @Test func `availableProviders returns all providers when nothing installed`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: []
+        )
+
+        #expect(skill.availableProviders.count == 2)
+        #expect(skill.availableProviders.contains(.claude))
+        #expect(skill.availableProviders.contains(.codex))
+    }
+
+    @Test func `availableProviders returns empty when fully installed`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude, .codex]
+        )
+
+        // User thinks: "Can I install this anywhere else?" → No
+        #expect(skill.availableProviders.isEmpty)
+    }
+
+    @Test func `isFullyInstalled returns true when installed in all providers`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude, .codex]
+        )
+
+        // User thinks: "Is this installed everywhere?"
+        #expect(skill.isFullyInstalled == true)
+    }
+
+    @Test func `isFullyInstalled returns false when partially installed`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude]
+        )
+
+        #expect(skill.isFullyInstalled == false)
+    }
+
+    @Test func `canBeInstalled returns true when there are available providers`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude]
+        )
+
+        // User thinks: "Can I install this somewhere?"
+        #expect(skill.canBeInstalled == true)
+    }
+
+    @Test func `canBeInstalled returns false when fully installed`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            installedProviders: [.claude, .codex]
+        )
+
+        #expect(skill.canBeInstalled == false)
+    }
+
+    // MARK: - Search (User Mental Model)
+
+    @Test func `matches returns true when query matches name`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "Professional UI design",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "")
+        )
+
+        // User thinks: "Does this skill match my search?"
+        #expect(skill.matches(query: "UI") == true)
+        #expect(skill.matches(query: "pro") == true)
+        #expect(skill.matches(query: "ux") == true)
+    }
+
+    @Test func `matches returns true when query matches description`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "Professional UI design",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "")
+        )
+
+        #expect(skill.matches(query: "design") == true)
+        #expect(skill.matches(query: "professional") == true)
+    }
+
+    @Test func `matches returns false when query matches nothing`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "Professional UI design",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "")
+        )
+
+        #expect(skill.matches(query: "calendar") == false)
+    }
+
+    @Test func `matches returns true for empty query`() {
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "")
+        )
+
+        // Empty query matches everything
+        #expect(skill.matches(query: "") == true)
+    }
+
+    // MARK: - Factory Methods (User Mental Model)
+
+    @Test func `withInstalledProviders returns skill with merged installation status`() {
+        let remoteSkill = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "# Content",
+            source: .remote(repoUrl: "https://github.com/example/skills"),
+            installedProviders: []
+        )
+
+        // User thinks: "This remote skill is actually installed locally"
+        let mergedSkill = remoteSkill.withInstalledProviders([.claude, .codex])
+
+        #expect(mergedSkill.installedProviders == [.claude, .codex])
+        #expect(mergedSkill.id == remoteSkill.id)
+        #expect(mergedSkill.name == remoteSkill.name)
+        #expect(mergedSkill.source == remoteSkill.source)
+    }
+
     // MARK: - Source
 
     @Test func `local skill has local source`() {
@@ -374,10 +561,23 @@ struct SkillsCatalogTests {
     }
 
     @Test func `anthropicSkills has correct values`() {
-        let repo = SkillsCatalog.anthropicSkills
+        let catalog = SkillsCatalog.anthropicSkills
 
-        #expect(repo.url == "https://github.com/anthropics/skills")
-        #expect(repo.name == "Anthropic Skills")
+        #expect(catalog.url == "https://github.com/anthropics/skills")
+        #expect(catalog.name == "Anthropic Skills")
+    }
+
+    @Test func `isOfficial returns true for anthropic catalog`() {
+        let catalog = SkillsCatalog.anthropicSkills
+
+        // User thinks: "Is this the official Anthropic catalog?"
+        #expect(catalog.isOfficial == true)
+    }
+
+    @Test func `isOfficial returns false for custom catalog`() {
+        let catalog = SkillsCatalog(url: "https://github.com/my-org/skills")
+
+        #expect(catalog.isOfficial == false)
     }
 
     @Test func `returns Unknown for empty URL`() {
