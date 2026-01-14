@@ -108,11 +108,11 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
 
             if let data = fileManager.contents(atPath: skillFilePath),
                let content = String(data: data, encoding: .utf8) {
-                // Found a skill! Use relative path as ID to ensure uniqueness
+                // Found a skill! Use folder name as ID (this is what gets installed)
                 do {
                     let skill = try SkillParser.parse(
                         content: content,
-                        id: itemRelativePath,
+                        id: item,
                         source: .remote(repoUrl: repoUrl)
                     )
                     skills.append(skill)
