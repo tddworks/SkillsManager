@@ -24,6 +24,15 @@ A macOS application for discovering, browsing, and installing skills for AI codi
   <em>Install skills to Claude Code and/or Codex with one click</em>
 </p>
 
+### Edit & Preview Skill
+
+<p align="center">
+  <img src="docs/screenshots/screenshot-edit-preview.png" alt=" Edit & Preview Skill" width="700"/>
+</p>
+<p align="center">
+  <em>Edit skill files and preview documentation with markdown rendering</em>
+</p>
+
 ## Features
 
 - **Browse Remote Skills** - Discover skills from GitHub repositories like [anthropics/skills](https://github.com/anthropics/skills)
