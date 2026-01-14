@@ -497,6 +497,51 @@ struct SkillTests {
         #expect(skill.uniqueKey == ".claude/skills/ui-ux-pro-max")
     }
 
+    // MARK: - List ID (Prevents SwiftUI Collisions)
+
+    @Test func `listId for local skill includes provider`() {
+        let skill = Skill(
+            id: "my-skill",
+            name: "My Skill",
+            description: "A skill",
+            version: "1.0.0",
+            content: "",
+            source: .local(provider: .claude)
+        )
+
+        #expect(skill.listId.contains("local"))
+        #expect(skill.listId.contains("claude"))
+        #expect(skill.listId.contains("my-skill"))
+    }
+
+    @Test func `listId for remote skills from different catalogs are unique`() {
+        let skillFromCatalogA = Skill(
+            id: "seo-review",
+            name: "SEO Review",
+            description: "SEO skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "https://github.com/anthropics/skills"),
+            repoPath: ".claude/skills"
+        )
+
+        let skillFromCatalogB = Skill(
+            id: "seo-review",
+            name: "SEO Review",
+            description: "SEO skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "https://github.com/other/skills"),
+            repoPath: ".claude/skills"
+        )
+
+        // Same uniqueKey (for deduplication)
+        #expect(skillFromCatalogA.uniqueKey == skillFromCatalogB.uniqueKey)
+
+        // Different listId (for SwiftUI)
+        #expect(skillFromCatalogA.listId != skillFromCatalogB.listId)
+    }
+
 }
 
 // MARK: - SkillSource Tests

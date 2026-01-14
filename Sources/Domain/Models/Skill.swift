@@ -75,6 +75,18 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         return id
     }
 
+    /// Unique identifier for SwiftUI List (includes source to prevent collisions across catalogs)
+    public var listId: String {
+        switch source {
+        case .local(let provider):
+            return "local-\(provider.rawValue)-\(id)"
+        case .remote(let repoUrl):
+            // Use hash of URL to keep it short but unique
+            let urlHash = String(repoUrl.hashValue)
+            return "remote-\(urlHash)-\(uniqueKey)"
+        }
+    }
+
     /// Display name for the skill
     /// - Local skills: just the name
     /// - Remote skills without repoPath: just the name
