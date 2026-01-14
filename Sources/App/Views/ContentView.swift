@@ -22,13 +22,6 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 600)
-        .toolbar {
-            #if ENABLE_SPARKLE
-            ToolbarItem(placement: .primaryAction) {
-                SettingsButton(sparkleUpdater: sparkleUpdater)
-            }
-            #endif
-        }
         .task {
             await library.loadSkills()
 
@@ -44,57 +37,6 @@ struct ContentView: View {
         }
     }
 }
-
-// MARK: - Settings Button with Update Badge
-
-#if ENABLE_SPARKLE
-struct SettingsButton: View {
-    let sparkleUpdater: SparkleUpdater?
-
-    var body: some View {
-        Button {
-            // Open Settings window using standard macOS command
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 12, weight: .medium))
-
-                // Update badge
-                if sparkleUpdater?.isUpdateAvailable == true {
-                    UpdateBadge()
-                        .offset(x: 4, y: -4)
-                }
-            }
-        }
-        .help(sparkleUpdater?.isUpdateAvailable == true ? "Update available" : "Settings")
-    }
-}
-
-// MARK: - Update Badge
-
-struct UpdateBadge: View {
-    var body: some View {
-        ZStack {
-            // Glow effect
-            Circle()
-                .fill(DesignSystem.Colors.success)
-                .frame(width: 10, height: 10)
-                .blur(radius: 2)
-                .opacity(0.5)
-
-            // Badge circle
-            Circle()
-                .fill(DesignSystem.Colors.success)
-                .frame(width: 8, height: 8)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
-                )
-        }
-    }
-}
-#endif
 
 // MARK: - Empty State View
 

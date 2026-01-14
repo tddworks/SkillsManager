@@ -4,6 +4,10 @@ import Domain
 struct SidebarView: View {
     @Bindable var library: SkillLibrary
 
+    #if ENABLE_SPARKLE
+    @Environment(\.sparkleUpdater) private var sparkleUpdater
+    #endif
+
     @State private var searchIsFocused = false
 
     var body: some View {
@@ -56,16 +60,11 @@ struct SidebarView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .toolbar {
+            #if ENABLE_SPARKLE
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await library.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .help("Refresh skills")
-                .disabled(library.isLoading)
+                SidebarSettingsButton(sparkleUpdater: sparkleUpdater)
             }
+            #endif
 
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -75,6 +74,17 @@ struct SidebarView: View {
                         .font(.system(size: 12, weight: .medium))
                 }
                 .help("Add repository")
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await library.refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .help("Refresh skills")
+                .disabled(library.isLoading)
             }
         }
         .sheet(isPresented: $library.showingAddRepoSheet) {
@@ -253,3 +263,29 @@ struct SidebarView: View {
         }
     }
 }
+
+// MARK: - Sidebar Settings Button
+
+#if ENABLE_SPARKLE
+struct SidebarSettingsButton: View {
+    let sparkleUpdater: SparkleUpdater?
+
+    var body: some View {
+        SettingsLink {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12, weight: .medium))
+
+                // Update badge
+                if sparkleUpdater?.isUpdateAvailable == true {
+                    Circle()
+                        .fill(DesignSystem.Colors.success)
+                        .frame(width: 6, height: 6)
+                        .offset(x: 2, y: -2)
+                }
+            }
+        }
+        .help(sparkleUpdater?.isUpdateAvailable == true ? "Update available - Open Settings" : "Settings")
+    }
+}
+#endif
