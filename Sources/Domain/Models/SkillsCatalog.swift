@@ -156,7 +156,7 @@ public final class SkillsCatalog: Identifiable {
     }
 
     /// Extract repo name from GitHub URL
-    public static func extractName(from url: String) -> String {
+    nonisolated public static func extractName(from url: String) -> String {
         var cleanUrl = url
             .replacingOccurrences(of: "https://github.com/", with: "")
             .replacingOccurrences(of: "http://github.com/", with: "")

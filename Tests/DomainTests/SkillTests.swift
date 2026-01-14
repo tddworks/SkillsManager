@@ -571,56 +571,60 @@ struct SkillSourceTests {
 // MARK: - SkillsCatalog Tests
 
 @Suite
+@MainActor
 struct SkillsCatalogTests {
 
     @Test func `extracts name from GitHub URL`() {
-        let repo = SkillsCatalog(url: "https://github.com/anthropics/skills")
+        let catalog = SkillsCatalog(url: "https://github.com/anthropics/skills", loader: MockSkillRepository())
 
-        #expect(repo.name == "Skills")
+        #expect(catalog.name == "Skills")
     }
 
     @Test func `extracts name from URL with trailing slash`() {
-        let repo = SkillsCatalog(url: "https://github.com/owner/repo/")
+        let catalog = SkillsCatalog(url: "https://github.com/owner/repo/", loader: MockSkillRepository())
 
-        #expect(repo.name == "Repo")
+        #expect(catalog.name == "Repo")
     }
 
     @Test func `extracts name from URL with .git suffix`() {
-        let repo = SkillsCatalog(url: "https://github.com/owner/repo.git")
+        let catalog = SkillsCatalog(url: "https://github.com/owner/repo.git", loader: MockSkillRepository())
 
-        #expect(repo.name == "Repo")
+        #expect(catalog.name == "Repo")
     }
 
     @Test func `uses provided name over extracted name`() {
-        let repo = SkillsCatalog(url: "https://github.com/anthropics/skills", name: "Custom Name")
+        let catalog = SkillsCatalog(url: "https://github.com/anthropics/skills", name: "Custom Name", loader: MockSkillRepository())
 
-        #expect(repo.name == "Custom Name")
+        #expect(catalog.name == "Custom Name")
     }
 
     @Test func `validates GitHub URL`() {
-        let validRepo = SkillsCatalog(url: "https://github.com/owner/repo")
-        let invalidRepo = SkillsCatalog(url: "https://example.com/repo")
+        let validCatalog = SkillsCatalog(url: "https://github.com/owner/repo", loader: MockSkillRepository())
+        let invalidCatalog = SkillsCatalog(url: "https://example.com/repo", loader: MockSkillRepository())
 
-        #expect(validRepo.isValid == true)
-        #expect(invalidRepo.isValid == false)
+        #expect(validCatalog.isValid == true)
+        #expect(invalidCatalog.isValid == false)
     }
 
-    @Test func `anthropicSkills has correct values`() {
-        let catalog = SkillsCatalog.anthropicSkills
+    @Test func `anthropicSkills data has correct values`() {
+        let data = SkillsCatalog.Data.anthropicSkills
 
-        #expect(catalog.url == "https://github.com/anthropics/skills")
-        #expect(catalog.name == "Anthropic Skills")
+        #expect(data.url == "https://github.com/anthropics/skills")
+        #expect(data.name == "Anthropic Skills")
     }
 
-    @Test func `isOfficial returns true for anthropic catalog`() {
-        let catalog = SkillsCatalog.anthropicSkills
+    @Test func `isOfficial returns true for official catalog`() {
+        let catalog = SkillsCatalog(
+            id: SkillsCatalog.officialAnthropicId,
+            url: "https://github.com/anthropics/skills",
+            loader: MockSkillRepository()
+        )
 
-        // User thinks: "Is this the official Anthropic catalog?"
         #expect(catalog.isOfficial == true)
     }
 
     @Test func `isOfficial returns false for custom catalog`() {
-        let catalog = SkillsCatalog(url: "https://github.com/my-org/skills")
+        let catalog = SkillsCatalog(url: "https://github.com/my-org/skills", loader: MockSkillRepository())
 
         #expect(catalog.isOfficial == false)
     }
@@ -635,5 +639,17 @@ struct SkillsCatalogTests {
         let name = SkillsCatalog.extractName(from: "http://github.com/owner/repo")
 
         #expect(name == "Repo")
+    }
+
+    @Test func `isLocal returns true for catalog without URL`() {
+        let catalog = SkillsCatalog(name: "Local", loader: MockSkillRepository())
+
+        #expect(catalog.isLocal == true)
+    }
+
+    @Test func `isLocal returns false for catalog with URL`() {
+        let catalog = SkillsCatalog(url: "https://github.com/owner/repo", loader: MockSkillRepository())
+
+        #expect(catalog.isLocal == false)
     }
 }
