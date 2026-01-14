@@ -111,9 +111,8 @@ struct SkillLibraryTests {
         )
         library.skills = [localSkill]
         library.selectedSkill = localSkill
-        library.uninstallProvider = .claude
 
-        await library.uninstall()
+        await library.uninstall(from: .claude)
 
         // Local skill should be removed
         #expect(library.skills.isEmpty)
@@ -134,9 +133,8 @@ struct SkillLibraryTests {
         )
         library.skills = [localSkill]
         library.selectedSkill = localSkill
-        library.uninstallProvider = .claude
 
-        await library.uninstall()
+        await library.uninstall(from: .claude)
 
         // Local skill should remain (still installed for codex)
         #expect(library.skills.count == 1)
@@ -159,9 +157,8 @@ struct SkillLibraryTests {
         )
         library.skills = [localSkill, remoteSkill]
         library.selectedSkill = localSkill
-        library.uninstallProvider = .claude
 
-        await library.uninstall()
+        await library.uninstall(from: .claude)
 
         // Remote skill should have updated installedProviders
         let updatedRemote = library.skills.first { !$0.source.isLocal }
@@ -181,9 +178,8 @@ struct SkillLibraryTests {
         )
         library.skills = [skill]
         library.selectedSkill = skill
-        library.uninstallProvider = .claude
 
-        await library.uninstall()
+        await library.uninstall(from: .claude)
 
         #expect(library.errorMessage?.contains("Uninstall failed") == true)
     }

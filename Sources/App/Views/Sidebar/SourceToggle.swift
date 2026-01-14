@@ -125,7 +125,7 @@ struct SourcePicker: View {
 
 struct AddCatalogSheet: View {
     @Bindable var library: SkillLibrary
-    @Environment(\.dismiss) private var dismiss
+    @Binding var isPresented: Bool
 
     @State private var urlInput: String = ""
     @FocusState private var isURLFocused: Bool
@@ -196,7 +196,7 @@ struct AddCatalogSheet: View {
             // Buttons
             HStack(spacing: DesignSystem.Spacing.md) {
                 Button {
-                    dismiss()
+                    isPresented = false
                 } label: {
                     Text("Cancel")
                         .font(DesignSystem.Typography.headline)
@@ -209,6 +209,7 @@ struct AddCatalogSheet: View {
 
                 Button {
                     library.addCatalog(url: urlInput)
+                    isPresented = false
                 } label: {
                     Text("Add Catalog")
                         .font(DesignSystem.Typography.headline)

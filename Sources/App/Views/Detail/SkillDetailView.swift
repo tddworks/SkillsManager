@@ -5,6 +5,11 @@ import Infrastructure
 struct SkillDetailView: View {
     let skill: Skill
     @Bindable var library: SkillLibrary
+    @Binding var showingInstallSheet: Bool
+
+    // Local UI state for uninstall confirmation
+    @State private var showingUninstallConfirmation = false
+    @State private var providerToUninstall: Provider?
 
     var body: some View {
         ScrollView {
@@ -53,7 +58,7 @@ struct SkillDetailView: View {
 
                 // Install button
                 Button {
-                    library.showInstall()
+                    showingInstallSheet = true
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 12, weight: .medium))
@@ -65,7 +70,8 @@ struct SkillDetailView: View {
                     Menu {
                         ForEach(Array(skill.installedProviders), id: \.self) { provider in
                             Button(role: .destructive) {
-                                library.confirmUninstall(from: provider)
+                                providerToUninstall = provider
+                                showingUninstallConfirmation = true
                             } label: {
                                 Label("Uninstall from \(provider.displayName)", systemImage: "trash")
                             }
@@ -90,17 +96,19 @@ struct SkillDetailView: View {
         }
         .confirmationDialog(
             "Uninstall Skill",
-            isPresented: $library.showingUninstallConfirmation,
+            isPresented: $showingUninstallConfirmation,
             titleVisibility: .visible
         ) {
             Button("Uninstall", role: .destructive) {
-                Task { await library.uninstall() }
+                if let provider = providerToUninstall {
+                    Task { await library.uninstall(from: provider) }
+                }
             }
             Button("Cancel", role: .cancel) {
-                library.cancelUninstall()
+                providerToUninstall = nil
             }
         } message: {
-            if let provider = library.uninstallProvider {
+            if let provider = providerToUninstall {
                 Text("Are you sure you want to uninstall \"\(skill.name)\" from \(provider.displayName)? This will delete the skill folder.")
             }
         }
@@ -179,7 +187,8 @@ struct SkillDetailView: View {
                             ProviderBadge(
                                 provider: provider,
                                 onUninstall: {
-                                    library.confirmUninstall(from: provider)
+                                    providerToUninstall = provider
+                                    showingUninstallConfirmation = true
                                 }
                             )
                         }

@@ -9,6 +9,7 @@ struct SidebarView: View {
     #endif
 
     @State private var searchIsFocused = false
+    @State private var showingAddCatalogSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,7 +23,7 @@ struct SidebarView: View {
                 selection: $library.selectedSource,
                 catalogs: library.catalogs,
                 onAddCatalog: {
-                    library.showingAddRepoSheet = true
+                    showingAddCatalogSheet = true
                 },
                 onRemoveCatalog: { catalog in
                     library.removeCatalog(catalog)
@@ -68,7 +69,7 @@ struct SidebarView: View {
 
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    library.showingAddRepoSheet = true
+                    showingAddCatalogSheet = true
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .medium))
@@ -87,8 +88,8 @@ struct SidebarView: View {
                 .disabled(library.isLoading)
             }
         }
-        .sheet(isPresented: $library.showingAddRepoSheet) {
-            AddCatalogSheet(library: library)
+        .sheet(isPresented: $showingAddCatalogSheet) {
+            AddCatalogSheet(library: library, isPresented: $showingAddCatalogSheet)
         }
     }
 

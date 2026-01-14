@@ -3,6 +3,7 @@ import Domain
 
 struct ContentView: View {
     @State private var library = SkillLibrary()
+    @State private var showingInstallSheet = false
 
     #if ENABLE_SPARKLE
     @Environment(\.sparkleUpdater) private var sparkleUpdater
@@ -15,7 +16,11 @@ struct ContentView: View {
             if library.isEditing {
                 SkillEditorView(library: library)
             } else if let skill = library.selectedSkill {
-                SkillDetailView(skill: skill, library: library)
+                SkillDetailView(
+                    skill: skill,
+                    library: library,
+                    showingInstallSheet: $showingInstallSheet
+                )
             } else {
                 EmptyStateView()
             }
@@ -30,9 +35,9 @@ struct ContentView: View {
             sparkleUpdater?.checkForUpdatesInBackground()
             #endif
         }
-        .sheet(isPresented: $library.showingInstallSheet) {
+        .sheet(isPresented: $showingInstallSheet) {
             if let skill = library.selectedSkill {
-                InstallSheet(skill: skill, library: library)
+                InstallSheet(skill: skill, library: library, isPresented: $showingInstallSheet)
             }
         }
     }

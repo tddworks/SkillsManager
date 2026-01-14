@@ -5,7 +5,7 @@ import Infrastructure
 struct InstallSheet: View {
     let skill: Skill
     @Bindable var library: SkillLibrary
-    @Environment(\.dismiss) private var dismiss
+    @Binding var isPresented: Bool
 
     @State private var selectedProviders: Set<Provider> = []
     @State private var isInstalling = false
@@ -70,7 +70,7 @@ struct InstallSheet: View {
             // Buttons
             HStack(spacing: DesignSystem.Spacing.md) {
                 Button {
-                    dismiss()
+                    isPresented = false
                 } label: {
                     Text("Cancel")
                         .font(DesignSystem.Typography.headline)
@@ -86,7 +86,7 @@ struct InstallSheet: View {
                     Task {
                         await library.install(to: selectedProviders)
                         isInstalling = false
-                        dismiss()
+                        isPresented = false
                     }
                 } label: {
                     HStack(spacing: DesignSystem.Spacing.sm) {

@@ -27,18 +27,6 @@ public final class SkillLibrary {
     /// Error message
     public var errorMessage: String?
 
-    /// Show install sheet
-    public var showingInstallSheet: Bool = false
-
-    /// Show uninstall confirmation
-    public var showingUninstallConfirmation: Bool = false
-
-    /// Provider to uninstall from
-    public var uninstallProvider: Provider?
-
-    /// Show add repository sheet
-    public var showingAddRepoSheet: Bool = false
-
     /// The skill editor for editing local skills
     public var skillEditor: SkillEditor?
 
@@ -137,7 +125,6 @@ public final class SkillLibrary {
             return
         }
         catalogs.append(catalog)
-        showingAddRepoSheet = false
 
         // Switch to the new catalog and load skills
         selectedSource = .remote(repoId: catalog.id)
@@ -273,12 +260,6 @@ public final class SkillLibrary {
         selectedSkill = skill
     }
 
-    /// Show install sheet for current skill
-    public func showInstall() {
-        guard selectedSkill != nil else { return }
-        showingInstallSheet = true
-    }
-
     /// Install selected skill to providers
     public func install(to providers: Set<Provider>) async {
         guard let skill = selectedSkill else { return }
@@ -318,20 +299,11 @@ public final class SkillLibrary {
         }
 
         isLoading = false
-        showingInstallSheet = false
     }
 
-    /// Show uninstall confirmation
-    public func confirmUninstall(from provider: Provider) {
-        guard selectedSkill != nil else { return }
-        uninstallProvider = provider
-        showingUninstallConfirmation = true
-    }
-
-    /// Uninstall selected skill
-    public func uninstall() async {
-        guard let skill = selectedSkill,
-              let provider = uninstallProvider else { return }
+    /// Uninstall selected skill from a provider
+    public func uninstall(from provider: Provider) async {
+        guard let skill = selectedSkill else { return }
 
         isLoading = true
 
@@ -357,14 +329,6 @@ public final class SkillLibrary {
         }
 
         isLoading = false
-        showingUninstallConfirmation = false
-        uninstallProvider = nil
-    }
-
-    /// Cancel uninstall
-    public func cancelUninstall() {
-        showingUninstallConfirmation = false
-        uninstallProvider = nil
     }
 
     // MARK: - Editing
