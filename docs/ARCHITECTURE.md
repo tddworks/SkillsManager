@@ -146,7 +146,7 @@ User selects "Remote" ──▶ SkillManager.fetchRemote() ──▶ GitHubSkill
                               Parse SKILL.md files
                                        │
                                        ▼
-                              Return [Skill] to AppState
+                              Return [Skill] to SkillLibrary
                                        │
                                        ▼
                               SwiftUI updates sidebar
@@ -203,7 +203,7 @@ SkillsManager/
 │       │   │   └── SkillDetailView.swift
 │       │   └── Sheets/
 │       │       └── InstallSheet.swift
-│       └── AppState.swift
+│       └── SkillLibrary.swift
 └── Tests/
     ├── DomainTests/
     │   ├── SkillTests.swift

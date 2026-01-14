@@ -192,7 +192,7 @@ SkillsManager/
 │   │   └── Installer/       # FileSystemSkillInstaller
 │   └── App/
 │       ├── Views/           # SwiftUI views
-│       └── AppState.swift   # Observable app state
+│       └── SkillLibrary.swift   # Observable skill library
 ├── Tests/
 │   ├── DomainTests/
 │   └── InfrastructureTests/
