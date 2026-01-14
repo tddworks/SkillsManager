@@ -89,6 +89,12 @@ let project = Project(
                     "ENABLE_PREVIEWS": "YES",
                     "CODE_SIGN_IDENTITY": "-",
                     "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+                ],
+                debug: [
+                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG ENABLE_SPARKLE",
+                ],
+                release: [
+                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "ENABLE_SPARKLE",
                 ]
             )
         ),
