@@ -336,58 +336,58 @@ struct SkillSourceTests {
     }
 }
 
-// MARK: - SkillsRepo Tests
+// MARK: - SkillsCatalog Tests
 
 @Suite
-struct SkillsRepoTests {
+struct SkillsCatalogTests {
 
     @Test func `extracts name from GitHub URL`() {
-        let repo = SkillsRepo(url: "https://github.com/anthropics/skills")
+        let repo = SkillsCatalog(url: "https://github.com/anthropics/skills")
 
         #expect(repo.name == "Skills")
     }
 
     @Test func `extracts name from URL with trailing slash`() {
-        let repo = SkillsRepo(url: "https://github.com/owner/repo/")
+        let repo = SkillsCatalog(url: "https://github.com/owner/repo/")
 
         #expect(repo.name == "Repo")
     }
 
     @Test func `extracts name from URL with .git suffix`() {
-        let repo = SkillsRepo(url: "https://github.com/owner/repo.git")
+        let repo = SkillsCatalog(url: "https://github.com/owner/repo.git")
 
         #expect(repo.name == "Repo")
     }
 
     @Test func `uses provided name over extracted name`() {
-        let repo = SkillsRepo(url: "https://github.com/anthropics/skills", name: "Custom Name")
+        let repo = SkillsCatalog(url: "https://github.com/anthropics/skills", name: "Custom Name")
 
         #expect(repo.name == "Custom Name")
     }
 
     @Test func `validates GitHub URL`() {
-        let validRepo = SkillsRepo(url: "https://github.com/owner/repo")
-        let invalidRepo = SkillsRepo(url: "https://example.com/repo")
+        let validRepo = SkillsCatalog(url: "https://github.com/owner/repo")
+        let invalidRepo = SkillsCatalog(url: "https://example.com/repo")
 
         #expect(validRepo.isValid == true)
         #expect(invalidRepo.isValid == false)
     }
 
     @Test func `anthropicSkills has correct values`() {
-        let repo = SkillsRepo.anthropicSkills
+        let repo = SkillsCatalog.anthropicSkills
 
         #expect(repo.url == "https://github.com/anthropics/skills")
         #expect(repo.name == "Anthropic Skills")
     }
 
     @Test func `returns Unknown for empty URL`() {
-        let name = SkillsRepo.extractName(from: "")
+        let name = SkillsCatalog.extractName(from: "")
 
         #expect(name == "Unknown")
     }
 
     @Test func `handles http URL`() {
-        let name = SkillsRepo.extractName(from: "http://github.com/owner/repo")
+        let name = SkillsCatalog.extractName(from: "http://github.com/owner/repo")
 
         #expect(name == "Repo")
     }

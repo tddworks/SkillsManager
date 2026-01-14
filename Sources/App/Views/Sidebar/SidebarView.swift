@@ -20,12 +20,12 @@ struct SidebarView: View {
             // Source picker
             SourcePicker(
                 selection: $library.selectedSource,
-                repositories: library.repositories,
-                onAddRepo: {
+                catalogs: library.catalogs,
+                onAddCatalog: {
                     library.showingAddRepoSheet = true
                 },
-                onRemoveRepo: { repo in
-                    library.removeRepository(repo)
+                onRemoveCatalog: { catalog in
+                    library.removeCatalog(catalog)
                 }
             )
             .padding(.horizontal, DesignSystem.Spacing.md)
@@ -73,7 +73,7 @@ struct SidebarView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .help("Add repository")
+                .help("Add catalog")
             }
 
             ToolbarItem(placement: .primaryAction) {
@@ -88,7 +88,7 @@ struct SidebarView: View {
             }
         }
         .sheet(isPresented: $library.showingAddRepoSheet) {
-            AddRepositorySheet(library: library)
+            AddCatalogSheet(library: library)
         }
     }
 
@@ -243,9 +243,9 @@ struct SidebarView: View {
         switch library.selectedSource {
         case .local:
             return "Installed Skills"
-        case .remote(let repoId):
-            if let repo = library.repositories.first(where: { $0.id == repoId }) {
-                return repo.name
+        case .remote(let catalogId):
+            if let catalog = library.catalogs.first(where: { $0.id == catalogId }) {
+                return catalog.name
             }
             return "Remote Skills"
         }

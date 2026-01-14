@@ -1,6 +1,7 @@
 import Foundation
 
 /// Installation target for skills - either Codex or Claude Code
+/// This is a pure domain value object - file system paths are resolved in Infrastructure layer
 public enum Provider: String, CaseIterable, Sendable, Identifiable, Hashable {
     case codex
     case claude
@@ -12,17 +13,6 @@ public enum Provider: String, CaseIterable, Sendable, Identifiable, Hashable {
         switch self {
         case .codex: return "Codex"
         case .claude: return "Claude Code"
-        }
-    }
-
-    /// Path where skills are installed for this provider
-    public var skillsPath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        switch self {
-        case .codex:
-            return "\(home)/.codex/skills/public"
-        case .claude:
-            return "\(home)/.claude/skills"
         }
     }
 }

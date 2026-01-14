@@ -33,20 +33,6 @@ struct ProviderTests {
         #expect(provider.displayName == "Claude Code")
     }
 
-    // MARK: - Installation Paths
-
-    @Test func `codex provider path is in codex skills directory`() {
-        let provider = Provider.codex
-
-        #expect(provider.skillsPath.contains(".codex/skills/public"))
-    }
-
-    @Test func `claude provider path is in claude skills directory`() {
-        let provider = Provider.claude
-
-        #expect(provider.skillsPath.contains(".claude/skills"))
-    }
-
     // MARK: - All Providers
 
     @Test func `allCases contains both providers`() {
@@ -57,3 +43,6 @@ struct ProviderTests {
         #expect(all.contains(.claude))
     }
 }
+
+// Note: Installation path tests are in InfrastructureTests/ProviderPathResolverTests.swift
+// Provider is a pure domain value object - file system paths are infrastructure concerns

@@ -12,12 +12,18 @@ public enum SkillWriterError: Error, Sendable, Equatable {
 public final class LocalSkillWriter: SkillWriter, @unchecked Sendable {
     private let fileManager: FileManager
     private let basePath: String?
+    private let pathResolver: ProviderPathResolver
 
     /// Creates a writer with optional custom base path (for testing)
     /// - Parameter basePath: Custom base path, or nil to use provider's default path
-    public init(basePath: String? = nil, fileManager: FileManager = .default) {
+    public init(
+        basePath: String? = nil,
+        fileManager: FileManager = .default,
+        pathResolver: ProviderPathResolver = ProviderPathResolver()
+    ) {
         self.basePath = basePath
         self.fileManager = fileManager
+        self.pathResolver = pathResolver
     }
 
     /// Saves skill content to its local file
@@ -30,7 +36,7 @@ public final class LocalSkillWriter: SkillWriter, @unchecked Sendable {
         }
 
         // Build path to SKILL.md
-        let skillsPath = basePath ?? provider.skillsPath
+        let skillsPath = basePath ?? pathResolver.skillsPath(for: provider)
         let skillPath = "\(skillsPath)/\(skill.id)/SKILL.md"
 
         // Verify skill exists

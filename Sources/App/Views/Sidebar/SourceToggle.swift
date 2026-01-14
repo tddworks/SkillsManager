@@ -3,9 +3,9 @@ import Domain
 
 struct SourcePicker: View {
     @Binding var selection: SourceFilter
-    let repositories: [SkillsRepo]
-    let onAddRepo: () -> Void
-    let onRemoveRepo: (SkillsRepo) -> Void
+    let catalogs: [SkillsCatalog]
+    let onAddCatalog: () -> Void
+    let onRemoveCatalog: (SkillsCatalog) -> Void
 
     @State private var isHovering = false
 
@@ -32,29 +32,29 @@ struct SourcePicker: View {
 
                 Divider()
 
-                // Remote repositories with remove option
-                ForEach(repositories) { repo in
+                // Remote catalogs with remove option
+                ForEach(catalogs) { catalog in
                     Menu {
                         Button {
-                            selection = .remote(repoId: repo.id)
+                            selection = .remote(repoId: catalog.id)
                         } label: {
                             Label("Select", systemImage: "checkmark.circle")
                         }
 
-                        // Don't allow removing the default Anthropic skills repo
-                        if repo.id != SkillsRepo.anthropicSkills.id {
+                        // Don't allow removing the default Anthropic skills catalog
+                        if catalog.id != SkillsCatalog.anthropicSkills.id {
                             Divider()
 
                             Button(role: .destructive) {
-                                onRemoveRepo(repo)
+                                onRemoveCatalog(catalog)
                             } label: {
-                                Label("Remove Repository", systemImage: "trash")
+                                Label("Remove Catalog", systemImage: "trash")
                             }
                         }
                     } label: {
                         HStack {
-                            Label(repo.name, systemImage: "cloud")
-                            if case .remote(let repoId) = selection, repoId == repo.id {
+                            Label(catalog.name, systemImage: "cloud")
+                            if case .remote(let catalogId) = selection, catalogId == catalog.id {
                                 Image(systemName: "checkmark")
                             }
                         }
@@ -63,11 +63,11 @@ struct SourcePicker: View {
 
                 Divider()
 
-                // Add repository
+                // Add catalog
                 Button {
-                    onAddRepo()
+                    onAddCatalog()
                 } label: {
-                    Label("Add Repository...", systemImage: "plus")
+                    Label("Add Catalog...", systemImage: "plus")
                 }
 
             } label: {
@@ -115,15 +115,15 @@ struct SourcePicker: View {
         switch selection {
         case .local:
             return "Local"
-        case .remote(let repoId):
-            return repositories.first { $0.id == repoId }?.name ?? "Remote"
+        case .remote(let catalogId):
+            return catalogs.first { $0.id == catalogId }?.name ?? "Remote"
         }
     }
 }
 
-// MARK: - Add Repository Sheet
+// MARK: - Add Catalog Sheet
 
-struct AddRepositorySheet: View {
+struct AddCatalogSheet: View {
     @Bindable var library: SkillLibrary
     @Environment(\.dismiss) private var dismiss
 
@@ -134,7 +134,7 @@ struct AddRepositorySheet: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Add Repository")
+                Text("Add Catalog")
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(DesignSystem.Colors.primaryText)
 
@@ -173,7 +173,7 @@ struct AddRepositorySheet: View {
                     )
                     .focused($isURLFocused)
 
-                Text("The repository should contain skill folders with SKILL.md files.")
+                Text("The catalog should contain skill folders with SKILL.md files.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.tertiaryText)
             }
@@ -208,9 +208,9 @@ struct AddRepositorySheet: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button {
-                    library.addRepository(url: urlInput)
+                    library.addCatalog(url: urlInput)
                 } label: {
-                    Text("Add Repository")
+                    Text("Add Catalog")
                         .font(DesignSystem.Typography.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -229,23 +229,23 @@ struct AddRepositorySheet: View {
         }
     }
 
-    private func exampleRow(_ repo: String) -> some View {
+    private func exampleRow(_ catalog: String) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: "link")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.tertiaryText)
 
-            Text("github.com/\(repo)")
+            Text("github.com/\(catalog)")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.secondaryText)
         }
     }
 }
 
-// MARK: - Repository Row
+// MARK: - Catalog Row
 
-struct RepositoryRow: View {
-    let repo: SkillsRepo
+struct CatalogRow: View {
+    let catalog: SkillsCatalog
     let isSelected: Bool
     let onSelect: () -> Void
     let onRemove: () -> Void
@@ -260,11 +260,11 @@ struct RepositoryRow: View {
                     .foregroundStyle(DesignSystem.Colors.secondaryText)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(repo.name)
+                    Text(catalog.name)
                         .font(DesignSystem.Typography.headline)
                         .foregroundStyle(DesignSystem.Colors.primaryText)
 
-                    Text(repo.url)
+                    Text(catalog.url)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.tertiaryText)
                         .lineLimit(1)
@@ -278,7 +278,7 @@ struct RepositoryRow: View {
                         .foregroundStyle(DesignSystem.Colors.accent)
                 }
 
-                if isHovering && repo.id != SkillsRepo.anthropicSkills.id {
+                if isHovering && catalog.id != SkillsCatalog.anthropicSkills.id {
                     Button {
                         onRemove()
                     } label: {

@@ -1,7 +1,8 @@
 import Foundation
 
-/// Represents a remote skills repository (GitHub repo)
-public struct SkillsRepo: Sendable, Equatable, Identifiable, Hashable, Codable {
+/// Represents a remote skills catalog (GitHub repo containing skills)
+/// Named "Catalog" to distinguish from the SkillRepository protocol (repository pattern)
+public struct SkillsCatalog: Sendable, Equatable, Identifiable, Hashable, Codable {
     public let id: UUID
     public let url: String
     public let name: String
@@ -41,10 +42,10 @@ public struct SkillsRepo: Sendable, Equatable, Identifiable, Hashable, Codable {
     }
 }
 
-/// Default repositories
-public extension SkillsRepo {
-    /// Anthropic's official skills repository
-    static let anthropicSkills = SkillsRepo(
+/// Default catalogs
+public extension SkillsCatalog {
+    /// Anthropic's official skills catalog
+    static let anthropicSkills = SkillsCatalog(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
         url: "https://github.com/anthropics/skills",
         name: "Anthropic Skills"

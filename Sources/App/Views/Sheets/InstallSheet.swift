@@ -1,5 +1,6 @@
 import SwiftUI
 import Domain
+import Infrastructure
 
 struct InstallSheet: View {
     let skill: Skill
@@ -246,7 +247,8 @@ struct ProviderCard: View {
     }
 
     private var shortenedPath: String {
-        provider.skillsPath
+        let pathResolver = ProviderPathResolver()
+        return pathResolver.skillsPath(for: provider)
             .replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
     }
 }

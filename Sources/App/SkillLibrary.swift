@@ -47,19 +47,19 @@ public final class SkillLibrary {
         skillEditor != nil
     }
 
-    /// User's configured repositories
-    public var repositories: [SkillsRepo] = [] {
+    /// User's configured skill catalogs (remote sources)
+    public var catalogs: [SkillsCatalog] = [] {
         didSet {
-            saveRepositories()
+            saveCatalogs()
         }
     }
 
     // MARK: - Computed Properties
 
-    /// Currently selected repository (if source is remote)
-    public var selectedRepo: SkillsRepo? {
-        if case .remote(let repoId) = selectedSource {
-            return repositories.first { $0.id == repoId }
+    /// Currently selected catalog (if source is remote)
+    public var selectedCatalog: SkillsCatalog? {
+        if case .remote(let catalogId) = selectedSource {
+            return catalogs.first { $0.id == catalogId }
         }
         return nil
     }
@@ -72,10 +72,10 @@ public final class SkillLibrary {
             switch selectedSource {
             case .local:
                 matchesSource = skill.source.isLocal
-            case .remote(let repoId):
+            case .remote(let catalogId):
                 if case .remote(let skillRepoUrl) = skill.source {
-                    let repo = repositories.first { $0.id == repoId }
-                    matchesSource = repo?.url == skillRepoUrl
+                    let catalog = catalogs.first { $0.id == catalogId }
+                    matchesSource = catalog?.url == skillRepoUrl
                 } else {
                     matchesSource = false
                 }
@@ -105,64 +105,64 @@ public final class SkillLibrary {
     public init() {
         self.claudeRepo = LocalSkillRepository(provider: .claude)
         self.codexRepo = LocalSkillRepository(provider: .codex)
-        self.repositories = Self.loadRepositories()
+        self.catalogs = Self.loadCatalogs()
     }
 
-    // MARK: - Repository Management
+    // MARK: - Catalog Management
 
-    /// Add a new repository
-    public func addRepository(url: String) {
-        let repo = SkillsRepo(url: url)
-        guard repo.isValid else {
+    /// Add a new catalog
+    public func addCatalog(url: String) {
+        let catalog = SkillsCatalog(url: url)
+        guard catalog.isValid else {
             errorMessage = "Invalid GitHub URL"
             return
         }
-        guard !repositories.contains(where: { $0.url == url }) else {
-            errorMessage = "Repository already added"
+        guard !catalogs.contains(where: { $0.url == url }) else {
+            errorMessage = "Catalog already added"
             return
         }
-        repositories.append(repo)
+        catalogs.append(catalog)
         showingAddRepoSheet = false
 
-        // Switch to the new repo and load skills
-        selectedSource = .remote(repoId: repo.id)
+        // Switch to the new catalog and load skills
+        selectedSource = .remote(repoId: catalog.id)
         Task { await loadSkills() }
     }
 
-    /// Remove a repository and delete its cached clone
-    public func removeRepository(_ repo: SkillsRepo) {
-        repositories.removeAll { $0.id == repo.id }
+    /// Remove a catalog and delete its cached clone
+    public func removeCatalog(_ catalog: SkillsCatalog) {
+        catalogs.removeAll { $0.id == catalog.id }
 
         // Delete the cloned repository from cache
         do {
-            try ClonedRepoSkillRepository.deleteClone(forRepoUrl: repo.url)
-            print("[SkillLibrary] Deleted cached clone for: \(repo.name)")
+            try ClonedRepoSkillRepository.deleteClone(forRepoUrl: catalog.url)
+            print("[SkillLibrary] Deleted cached clone for: \(catalog.name)")
         } catch {
-            print("[SkillLibrary] Failed to delete cached clone for \(repo.name): \(error)")
+            print("[SkillLibrary] Failed to delete cached clone for \(catalog.name): \(error)")
         }
 
-        // If we were viewing that repo, switch to local
-        if case .remote(let repoId) = selectedSource, repoId == repo.id {
+        // If we were viewing that catalog, switch to local
+        if case .remote(let catalogId) = selectedSource, catalogId == catalog.id {
             selectedSource = .local
         }
     }
 
     // MARK: - Persistence
 
-    private static let repositoriesKey = "skillsManager.repositories"
+    private static let catalogsKey = "skillsManager.catalogs"
 
-    private static func loadRepositories() -> [SkillsRepo] {
-        guard let data = UserDefaults.standard.data(forKey: repositoriesKey),
-              let repos = try? JSONDecoder().decode([SkillsRepo].self, from: data) else {
-            // Return default repos
+    private static func loadCatalogs() -> [SkillsCatalog] {
+        guard let data = UserDefaults.standard.data(forKey: catalogsKey),
+              let catalogs = try? JSONDecoder().decode([SkillsCatalog].self, from: data) else {
+            // Return default catalogs
             return [.anthropicSkills]
         }
-        return repos
+        return catalogs
     }
 
-    private func saveRepositories() {
-        if let data = try? JSONEncoder().encode(repositories) {
-            UserDefaults.standard.set(data, forKey: Self.repositoriesKey)
+    private func saveCatalogs() {
+        if let data = try? JSONEncoder().encode(catalogs) {
+            UserDefaults.standard.set(data, forKey: Self.catalogsKey)
         }
     }
 
@@ -196,17 +196,17 @@ public final class SkillLibrary {
                 }
             }
 
-            // Load remote skills from all repositories using git clone
-            for repo in repositories {
+            // Load remote skills from all catalogs using git clone
+            for catalog in catalogs {
                 do {
-                    print("[SkillLibrary] Loading skills from: \(repo.name) (\(repo.url)) via git clone")
-                    let remoteRepo = ClonedRepoSkillRepository(repoUrl: repo.url)
+                    print("[SkillLibrary] Loading skills from: \(catalog.name) (\(catalog.url)) via git clone")
+                    let remoteRepo = ClonedRepoSkillRepository(repoUrl: catalog.url)
                     let remoteSkills = try await remoteRepo.fetchAll()
-                    print("[SkillLibrary] Found \(remoteSkills.count) skills in \(repo.name)")
+                    print("[SkillLibrary] Found \(remoteSkills.count) skills in \(catalog.name)")
 
                     for skill in remoteSkills {
                         // Use uniqueKey (repoPath + id) for deduplication
-                        let key = "\(repo.id)-\(skill.uniqueKey)"
+                        let key = "\(catalog.id)-\(skill.uniqueKey)"
                         // Match by uniqueKey to sync installation status
                         if let existing = merged[skill.uniqueKey] {
                             // Mark remote version with installation status from local
@@ -244,8 +244,8 @@ public final class SkillLibrary {
                     } else {
                         errorDesc = "Failed to load: \(error.localizedDescription)"
                     }
-                    errorMessage = "Error loading \(repo.name): \(errorDesc)"
-                    print("Failed to load from \(repo.name): \(error)")
+                    errorMessage = "Error loading \(catalog.name): \(errorDesc)"
+                    print("Failed to load from \(catalog.name): \(error)")
                 }
             }
 

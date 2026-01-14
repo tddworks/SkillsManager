@@ -14,13 +14,16 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
 
     private let fileManager: FileManager
     private let gitHubClient: GitHubClientProtocol
+    private let pathResolver: ProviderPathResolver
 
     public init(
         fileManager: FileManager = .default,
-        gitHubClient: GitHubClientProtocol = GitHubClient.shared
+        gitHubClient: GitHubClientProtocol = GitHubClient.shared,
+        pathResolver: ProviderPathResolver = ProviderPathResolver()
     ) {
         self.fileManager = fileManager
         self.gitHubClient = gitHubClient
+        self.pathResolver = pathResolver
     }
 
     public func install(_ skill: Skill, to providers: Set<Provider>) async throws -> Skill {
@@ -31,7 +34,7 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             guard !skill.isInstalledFor(provider) else { continue }
 
             // skill.id is the folder name used for installation path
-            let targetPath = "\(provider.skillsPath)/\(skill.id)"
+            let targetPath = "\(pathResolver.skillsPath(for: provider))/\(skill.id)"
 
             // Create directory
             try createDirectory(at: targetPath)
@@ -61,7 +64,7 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
     }
 
     public func uninstall(_ skill: Skill, from provider: Provider) async throws -> Skill {
-        let targetPath = "\(provider.skillsPath)/\(skill.id)"
+        let targetPath = "\(pathResolver.skillsPath(for: provider))/\(skill.id)"
 
         if fileManager.fileExists(atPath: targetPath) {
             try fileManager.removeItem(atPath: targetPath)

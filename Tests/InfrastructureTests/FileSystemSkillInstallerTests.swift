@@ -188,33 +188,35 @@ struct SkillMatchingTests {
 
 final class TempDirFileManager: FileManagerProtocol, @unchecked Sendable {
     private let basePath: String
+    private let claudeSkillsPath: String
 
     init(basePath: String) {
         self.basePath = basePath
+        self.claudeSkillsPath = ProviderPathResolver().skillsPath(for: .claude)
     }
 
     func fileExists(atPath path: String) -> Bool {
-        FileManager.default.fileExists(atPath: path.replacingOccurrences(of: Provider.claude.skillsPath, with: basePath))
+        FileManager.default.fileExists(atPath: path.replacingOccurrences(of: claudeSkillsPath, with: basePath))
     }
 
     func contentsOfDirectory(atPath path: String) throws -> [String] {
-        let actualPath = path.replacingOccurrences(of: Provider.claude.skillsPath, with: basePath)
+        let actualPath = path.replacingOccurrences(of: claudeSkillsPath, with: basePath)
         return try FileManager.default.contentsOfDirectory(atPath: actualPath)
     }
 
     func contents(atPath path: String) -> Data? {
-        let actualPath = path.replacingOccurrences(of: Provider.claude.skillsPath, with: basePath)
+        let actualPath = path.replacingOccurrences(of: claudeSkillsPath, with: basePath)
         return FileManager.default.contents(atPath: actualPath)
     }
 
     func isDirectory(atPath path: String) -> Bool {
-        let actualPath = path.replacingOccurrences(of: Provider.claude.skillsPath, with: basePath)
+        let actualPath = path.replacingOccurrences(of: claudeSkillsPath, with: basePath)
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: actualPath, isDirectory: &isDir) && isDir.boolValue
     }
 
     func removeItem(atPath path: String) throws {
-        let actualPath = path.replacingOccurrences(of: Provider.claude.skillsPath, with: basePath)
+        let actualPath = path.replacingOccurrences(of: claudeSkillsPath, with: basePath)
         try FileManager.default.removeItem(atPath: actualPath)
     }
 }

@@ -7,10 +7,14 @@ public final class LocalSkillRepository: SkillRepository, @unchecked Sendable {
     private let fileManager: FileManagerProtocol
     private let skillsPath: String
 
-    public init(provider: Provider, fileManager: FileManagerProtocol = RealFileManager.shared) {
+    public init(
+        provider: Provider,
+        fileManager: FileManagerProtocol = RealFileManager.shared,
+        pathResolver: ProviderPathResolver = ProviderPathResolver()
+    ) {
         self.provider = provider
         self.fileManager = fileManager
-        self.skillsPath = provider.skillsPath
+        self.skillsPath = pathResolver.skillsPath(for: provider)
     }
 
     /// Fetch all skills from the local skills directory (recursively)

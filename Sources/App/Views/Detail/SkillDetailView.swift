@@ -1,5 +1,6 @@
 import SwiftUI
 import Domain
+import Infrastructure
 
 struct SkillDetailView: View {
     let skill: Skill
@@ -210,7 +211,8 @@ struct SkillDetailView: View {
 
     private func openInFinder() {
         guard case .local(let provider) = skill.source else { return }
-        let path = "\(provider.skillsPath)/\(skill.id)"
+        let pathResolver = ProviderPathResolver()
+        let path = "\(pathResolver.skillsPath(for: provider))/\(skill.id)"
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
     }
 }
