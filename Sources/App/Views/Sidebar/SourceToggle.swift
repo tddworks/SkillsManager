@@ -42,7 +42,7 @@ struct SourcePicker: View {
                         }
 
                         // Don't allow removing the default Anthropic skills catalog
-                        if catalog.id != SkillsCatalog.anthropicSkills.id {
+                        if catalog.id != SkillsCatalog.officialAnthropicId {
                             Divider()
 
                             Button(role: .destructive) {
@@ -265,7 +265,7 @@ struct CatalogRow: View {
                         .font(DesignSystem.Typography.headline)
                         .foregroundStyle(DesignSystem.Colors.primaryText)
 
-                    Text(catalog.url)
+                    Text(catalog.url ?? "Local")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.tertiaryText)
                         .lineLimit(1)
@@ -279,7 +279,7 @@ struct CatalogRow: View {
                         .foregroundStyle(DesignSystem.Colors.accent)
                 }
 
-                if isHovering && catalog.id != SkillsCatalog.anthropicSkills.id {
+                if isHovering && catalog.id != SkillsCatalog.officialAnthropicId {
                     Button {
                         onRemove()
                     } label: {

@@ -7,10 +7,20 @@ import Infrastructure
 @MainActor
 public final class SkillLibrary {
 
-    // MARK: - State
+    // MARK: - Catalogs
 
-    /// All skills (local + remote combined)
-    public var skills: [Skill] = []
+    /// Local catalog (installed skills from claude/codex)
+    public let localCatalog: SkillsCatalog
+
+    /// Remote catalogs (GitHub repos)
+    public var remoteCatalogs: [SkillsCatalog] = []
+
+    /// All catalogs for UI iteration
+    public var catalogs: [SkillsCatalog] {
+        [localCatalog] + remoteCatalogs
+    }
+
+    // MARK: - Selection State
 
     /// Currently selected skill
     public var selectedSkill: Skill?
@@ -21,11 +31,15 @@ public final class SkillLibrary {
     /// Search query
     public var searchQuery: String = ""
 
+    // MARK: - Loading State
+
     /// Loading state
     public var isLoading: Bool = false
 
     /// Error message
     public var errorMessage: String?
+
+    // MARK: - Editing
 
     /// The skill editor for editing local skills
     public var skillEditor: SkillEditor?
@@ -35,109 +49,112 @@ public final class SkillLibrary {
         skillEditor != nil
     }
 
-    /// User's configured skill catalogs (remote sources)
-    public var catalogs: [SkillsCatalog] = [] {
-        didSet {
-            saveCatalogs()
-        }
-    }
-
     // MARK: - Computed Properties
 
-    /// Currently selected catalog (if source is remote)
-    public var selectedCatalog: SkillsCatalog? {
-        if case .remote(let catalogId) = selectedSource {
-            return catalogs.first { $0.id == catalogId }
+    /// Currently selected catalog
+    public var selectedCatalog: SkillsCatalog {
+        switch selectedSource {
+        case .local:
+            return localCatalog
+        case .remote(let catalogId):
+            return remoteCatalogs.first { $0.id == catalogId } ?? localCatalog
         }
-        return nil
     }
 
     /// Filtered skills based on source and search
     public var filteredSkills: [Skill] {
-        skills.filter { skill in
-            // Filter by source
-            let matchesSource: Bool
-            switch selectedSource {
-            case .local:
-                matchesSource = skill.source.isLocal
-            case .remote(let catalogId):
-                if case .remote(let skillRepoUrl) = skill.source {
-                    let catalog = catalogs.first { $0.id == catalogId }
-                    matchesSource = catalog?.url == skillRepoUrl
-                } else {
-                    matchesSource = false
-                }
-            }
-
-            // Filter by search - delegated to domain model
-            return matchesSource && skill.matches(query: searchQuery)
-        }
+        let sourceSkills = selectedCatalog.skills
+        guard !searchQuery.isEmpty else { return sourceSkills }
+        return sourceSkills.filter { $0.matches(query: searchQuery) }
     }
 
     /// Count of local skills
     public var localSkillCount: Int {
-        skills.filter { $0.source.isLocal }.count
+        localCatalog.skills.count
     }
 
     // MARK: - Dependencies
 
-    private let claudeRepo: SkillRepository
-    private let codexRepo: SkillRepository
     private let installer: SkillInstaller
     private let writerFactory: () -> SkillWriter
+    private let catalogLoaderFactory: (String) -> SkillRepository
+    private let cacheCleaner: (String) throws -> Void
 
     // MARK: - Init
 
     public init() {
-        self.claudeRepo = LocalSkillRepository(provider: .claude)
-        self.codexRepo = LocalSkillRepository(provider: .codex)
+        let claudeRepo = LocalSkillRepository(provider: .claude)
+        let codexRepo = LocalSkillRepository(provider: .codex)
+        let localLoader = MergedSkillRepository.forLocalSkills(
+            claudeRepo: claudeRepo,
+            codexRepo: codexRepo
+        )
+
+        self.localCatalog = SkillsCatalog(
+            id: SkillsCatalog.localCatalogId,
+            name: "Local",
+            loader: localLoader
+        )
+
         self.installer = FileSystemSkillInstaller()
         self.writerFactory = { LocalSkillWriter() }
-        self.catalogs = Self.loadCatalogs()
+        self.catalogLoaderFactory = { ClonedRepoSkillRepository(repoUrl: $0) }
+        self.cacheCleaner = { try ClonedRepoSkillRepository.deleteClone(forRepoUrl: $0) }
+        self.remoteCatalogs = Self.loadRemoteCatalogs(loaderFactory: catalogLoaderFactory)
     }
 
     /// Testable initializer with dependency injection
     public init(
-        claudeRepo: SkillRepository,
-        codexRepo: SkillRepository,
+        localCatalog: SkillsCatalog,
+        remoteCatalogs: [SkillsCatalog] = [],
         installer: SkillInstaller,
         writerFactory: @escaping () -> SkillWriter = { LocalSkillWriter() },
-        catalogs: [SkillsCatalog] = []
+        catalogLoaderFactory: @escaping (String) -> SkillRepository = { ClonedRepoSkillRepository(repoUrl: $0) },
+        cacheCleaner: @escaping (String) throws -> Void = { try ClonedRepoSkillRepository.deleteClone(forRepoUrl: $0) }
     ) {
-        self.claudeRepo = claudeRepo
-        self.codexRepo = codexRepo
+        self.localCatalog = localCatalog
+        self.remoteCatalogs = remoteCatalogs
         self.installer = installer
         self.writerFactory = writerFactory
-        self.catalogs = catalogs
+        self.catalogLoaderFactory = catalogLoaderFactory
+        self.cacheCleaner = cacheCleaner
     }
 
     // MARK: - Catalog Management
 
-    /// Add a new catalog
+    /// Add a new remote catalog
     public func addCatalog(url: String) {
-        let catalog = SkillsCatalog(url: url)
+        let catalog = SkillsCatalog(
+            url: url,
+            loader: catalogLoaderFactory(url)
+        )
         guard catalog.isValid else {
             errorMessage = "Invalid GitHub URL"
             return
         }
-        guard !catalogs.contains(where: { $0.url == url }) else {
+        guard !remoteCatalogs.contains(where: { $0.url == url }) else {
             errorMessage = "Catalog already added"
             return
         }
-        catalogs.append(catalog)
+        remoteCatalogs.append(catalog)
+        saveRemoteCatalogs()
 
         // Switch to the new catalog and load skills
         selectedSource = .remote(repoId: catalog.id)
-        Task { await loadSkills() }
+        Task { await catalog.loadSkills() }
     }
 
-    /// Remove a catalog and delete its cached clone
+    /// Remove a remote catalog
     public func removeCatalog(_ catalog: SkillsCatalog) {
-        catalogs.removeAll { $0.id == catalog.id }
+        guard !catalog.isLocal else { return }  // Can't remove local catalog
+        guard let url = catalog.url else { return }
+
+        remoteCatalogs.removeAll { $0.id == catalog.id }
+        saveRemoteCatalogs()
 
         // Delete the cloned repository from cache
         do {
-            try ClonedRepoSkillRepository.deleteClone(forRepoUrl: catalog.url)
+            try cacheCleaner(url)
             print("[SkillLibrary] Deleted cached clone for: \(catalog.name)")
         } catch {
             print("[SkillLibrary] Failed to delete cached clone for \(catalog.name): \(error)")
@@ -153,99 +170,53 @@ public final class SkillLibrary {
 
     private static let catalogsKey = "skillsManager.catalogs"
 
-    private static func loadCatalogs() -> [SkillsCatalog] {
+    private static func loadRemoteCatalogs(
+        loaderFactory: @escaping (String) -> SkillRepository
+    ) -> [SkillsCatalog] {
         guard let data = UserDefaults.standard.data(forKey: catalogsKey),
-              let catalogs = try? JSONDecoder().decode([SkillsCatalog].self, from: data) else {
-            // Return default catalogs
-            return [.anthropicSkills]
+              let catalogsData = try? JSONDecoder().decode([SkillsCatalog.Data].self, from: data) else {
+            // Return default Anthropic catalog
+            return [
+                SkillsCatalog(
+                    from: .anthropicSkills,
+                    loader: loaderFactory(SkillsCatalog.Data.anthropicSkills.url!)
+                )
+            ]
         }
-        return catalogs
+        return catalogsData.compactMap { catalogData in
+            guard let url = catalogData.url else { return nil }
+            return SkillsCatalog(
+                from: catalogData,
+                loader: loaderFactory(url)
+            )
+        }
     }
 
-    private func saveCatalogs() {
-        if let data = try? JSONEncoder().encode(catalogs) {
+    private func saveRemoteCatalogs() {
+        let catalogsData = remoteCatalogs.map { $0.persistableData }
+        if let data = try? JSONEncoder().encode(catalogsData) {
             UserDefaults.standard.set(data, forKey: Self.catalogsKey)
         }
     }
 
     // MARK: - Actions
 
-    /// Load skills from all sources
+    /// Load skills from all catalogs
     public func loadSkills() async {
         isLoading = true
         errorMessage = nil
 
-        do {
-            // Load local skills from both providers
-            async let claudeSkills = claudeRepo.fetchAll()
-            async let codexSkills = codexRepo.fetchAll()
-
-            let (claude, codex) = try await (claudeSkills, codexSkills)
-
-            // Merge local skills - use uniqueKey for matching with remote
-            var merged: [String: Skill] = [:]
-
-            for skill in claude {
-                merged[skill.uniqueKey] = skill.installing(for: .claude)
-            }
-
-            for skill in codex {
-                if var existing = merged[skill.uniqueKey] {
-                    existing = existing.installing(for: .codex)
-                    merged[skill.uniqueKey] = existing
-                } else {
-                    merged[skill.uniqueKey] = skill.installing(for: .codex)
-                }
-            }
-
-            // Load remote skills from all catalogs using git clone
+        // Load all catalogs in parallel
+        await withTaskGroup(of: Void.self) { group in
             for catalog in catalogs {
-                do {
-                    print("[SkillLibrary] Loading skills from: \(catalog.name) (\(catalog.url)) via git clone")
-                    let remoteRepo = ClonedRepoSkillRepository(repoUrl: catalog.url)
-                    let remoteSkills = try await remoteRepo.fetchAll()
-                    print("[SkillLibrary] Found \(remoteSkills.count) skills in \(catalog.name)")
-
-                    for skill in remoteSkills {
-                        // Use uniqueKey (repoPath + id) for deduplication
-                        let key = "\(catalog.id)-\(skill.uniqueKey)"
-                        // Match by uniqueKey to sync installation status
-                        if let existing = merged[skill.uniqueKey] {
-                            // Merge remote skill with local installation status
-                            merged[key] = skill.withInstalledProviders(existing.installedProviders)
-                        } else {
-                            merged[key] = skill
-                        }
-                    }
-                } catch {
-                    // Show error to user but continue with other repos
-                    let errorDesc: String
-                    if let gitError = error as? GitCLIError {
-                        switch gitError {
-                        case .cloneFailed(let message):
-                            errorDesc = "Clone failed: \(message)"
-                        case .pullFailed(let message):
-                            errorDesc = "Pull failed: \(message)"
-                        case .gitNotInstalled:
-                            errorDesc = "Git is not installed. Please install git to use remote repositories."
-                        default:
-                            errorDesc = "Git error: \(error.localizedDescription)"
-                        }
-                    } else {
-                        errorDesc = "Failed to load: \(error.localizedDescription)"
-                    }
-                    errorMessage = "Error loading \(catalog.name): \(errorDesc)"
-                    print("Failed to load from \(catalog.name): \(error)")
+                group.addTask {
+                    await catalog.loadSkills()
                 }
             }
-
-            skills = Array(merged.values).sorted {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-
-        } catch {
-            errorMessage = error.localizedDescription
         }
+
+        // Sync installation status on remote catalog skills
+        syncInstallationStatus()
 
         isLoading = false
     }
@@ -269,29 +240,8 @@ public final class SkillLibrary {
         do {
             let updatedSkill = try await installer.install(skill, to: providers)
 
-            // Update installedProviders on all matching skills (remote views)
-            for index in skills.indices {
-                if skills[index].uniqueKey == skill.uniqueKey {
-                    skills[index] = skills[index].withInstalledProviders(updatedSkill.installedProviders)
-                }
-            }
-
-            // Add local skill entry if not exists (for local view)
-            if !skills.contains(where: { $0.source.isLocal && $0.uniqueKey == skill.uniqueKey }) {
-                let localSkill = Skill(
-                    id: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    version: skill.version,
-                    content: skill.content,
-                    source: .local(provider: providers.first!),
-                    repoPath: skill.repoPath,
-                    installedProviders: updatedSkill.installedProviders
-                )
-                skills.append(localSkill)
-                skills.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            }
-
+            updateInstallationStatus(for: skill.uniqueKey, to: updatedSkill.installedProviders)
+            addToLocalCatalog(skill, providers: updatedSkill.installedProviders)
             selectedSkill = updatedSkill
 
         } catch {
@@ -310,16 +260,10 @@ public final class SkillLibrary {
         do {
             let updatedSkill = try await installer.uninstall(skill, from: provider)
 
-            // Update installedProviders on all matching skills
-            for index in skills.indices {
-                if skills[index].uniqueKey == skill.uniqueKey {
-                    skills[index] = skills[index].withInstalledProviders(updatedSkill.installedProviders)
-                }
-            }
+            updateInstallationStatus(for: skill.uniqueKey, to: updatedSkill.installedProviders)
 
-            // Remove local skill entry if fully uninstalled
             if updatedSkill.installedProviders.isEmpty {
-                skills.removeAll { $0.source.isLocal && $0.uniqueKey == skill.uniqueKey }
+                removeFromLocalCatalog(uniqueKey: skill.uniqueKey)
             }
 
             selectedSkill = updatedSkill
@@ -329,6 +273,44 @@ public final class SkillLibrary {
         }
 
         isLoading = false
+    }
+
+    // MARK: - Installation Status Sync
+
+    /// Sync installation status from local catalog to remote catalogs
+    private func syncInstallationStatus() {
+        let localSkills = localCatalog.skills
+        for catalog in remoteCatalogs {
+            catalog.syncInstallationStatus(with: localSkills)
+        }
+    }
+
+    /// Update installation status for all skills matching the uniqueKey
+    private func updateInstallationStatus(for uniqueKey: String, to providers: Set<Provider>) {
+        localCatalog.updateInstallationStatus(for: uniqueKey, to: providers)
+        for catalog in remoteCatalogs {
+            catalog.updateInstallationStatus(for: uniqueKey, to: providers)
+        }
+    }
+
+    /// Add skill to local catalog (creates entry if not exists)
+    private func addToLocalCatalog(_ skill: Skill, providers: Set<Provider>) {
+        let localSkill = Skill(
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            version: skill.version,
+            content: skill.content,
+            source: .local(provider: providers.first!),
+            repoPath: skill.repoPath,
+            installedProviders: providers
+        )
+        localCatalog.addSkill(localSkill)
+    }
+
+    /// Remove skill from local catalog
+    private func removeFromLocalCatalog(uniqueKey: String) {
+        localCatalog.removeSkill(uniqueKey: uniqueKey)
     }
 
     // MARK: - Editing
@@ -351,10 +333,7 @@ public final class SkillLibrary {
         do {
             let savedSkill = try await editor.save()
 
-            // Update in-memory state
-            if let index = skills.firstIndex(where: { $0.id == savedSkill.id }) {
-                skills[index] = savedSkill
-            }
+            localCatalog.updateSkill(savedSkill)
             selectedSkill = savedSkill
 
             skillEditor = nil
