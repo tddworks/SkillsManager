@@ -2,17 +2,44 @@ import Foundation
 
 /// Rich domain model representing an installable skill for AI coding assistants
 public struct Skill: Sendable, Equatable, Identifiable, Hashable {
+
+    // MARK: - Identity (simple, one purpose each)
+
+    /// Folder name - used for installation path (e.g., "ui-ux-pro-max")
     public let id: String
+
+    /// Skill name from frontmatter
     public let name: String
+
+    /// Skill description from frontmatter
     public let description: String
+
+    /// Skill version from frontmatter
     public let version: String
+
+    /// Full SKILL.md content
     public let content: String
+
+    // MARK: - Source & Location
+
+    /// Where the skill comes from (local or remote)
     public let source: SkillSource
+
+    /// Path within repo where skill was found (e.g., ".claude/skills")
+    /// Only set for remote skills; nil for local skills
+    public let repoPath: String?
+
+    // MARK: - Installation Status
+
+    /// Which providers this skill is installed for
     public var installedProviders: Set<Provider>
+
+    // MARK: - Metadata
+
     public var referenceCount: Int
     public var scriptCount: Int
-    /// The actual folder name used for installation (may differ from id for deduplication)
-    public let folderName: String
+
+    // MARK: - Init
 
     public init(
         id: String,
@@ -21,10 +48,10 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         version: String,
         content: String,
         source: SkillSource,
+        repoPath: String? = nil,
         installedProviders: Set<Provider> = [],
         referenceCount: Int = 0,
-        scriptCount: Int = 0,
-        folderName: String? = nil
+        scriptCount: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -32,27 +59,32 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         self.version = version
         self.content = content
         self.source = source
+        self.repoPath = repoPath
         self.installedProviders = installedProviders
         self.referenceCount = referenceCount
         self.scriptCount = scriptCount
-        self.folderName = folderName ?? id  // Default to id if not specified
     }
 
     // MARK: - Computed Properties (Domain Behavior)
 
+    /// Unique key for deduplication (combines repoPath + id for remote skills)
+    public var uniqueKey: String {
+        if let path = repoPath {
+            return "\(path)/\(id)"
+        }
+        return id
+    }
+
     /// Display name for the skill
-    /// - Local skills: just the name (clean)
-    /// - Remote skills: path prefix + name (to distinguish variants)
+    /// - Local skills: just the name
+    /// - Remote skills without repoPath: just the name
+    /// - Remote skills with repoPath: "name (repoPath)" to distinguish variants
     public var displayName: String {
-        // Local skills: just show the name
         if source.isLocal {
             return name
         }
-        // Remote skills: show path context if ID has a prefix
-        if id != folderName && id.hasSuffix(folderName) {
-            let prefix = String(id.dropLast(folderName.count + 1))
-            let displayPrefix = prefix.replacingOccurrences(of: "-", with: " / ")
-            return "\(displayPrefix) / \(name)"
+        if let path = repoPath, !path.isEmpty {
+            return "\(name) (\(path))"
         }
         return name
     }
@@ -107,10 +139,10 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
             version: version,
             content: newContent,
             source: source,
+            repoPath: repoPath,
             installedProviders: installedProviders,
             referenceCount: referenceCount,
-            scriptCount: scriptCount,
-            folderName: folderName
+            scriptCount: scriptCount
         )
     }
 }

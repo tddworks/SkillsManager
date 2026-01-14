@@ -169,6 +169,69 @@ struct LocalSkillRepositoryTests {
 
         #expect(skill == nil)
     }
+
+    // MARK: - UniqueKey / RepoPath Tracking
+
+    @Test func `parses repoPath from skill-id metadata`() async throws {
+        let skillContent = """
+        ---
+        name: ui-ux-pro-max
+        description: UI/UX design skill
+        ---
+        # UI/UX Pro Max
+        """
+
+        // .skill-id contains uniqueKey: ".claude/skills/ui-ux-pro-max"
+        let repo = LocalSkillRepository(
+            provider: .claude,
+            fileManager: MockFileManager(
+                directoryExists: true,
+                contents: ["ui-ux-pro-max"],
+                skillFiles: [
+                    "ui-ux-pro-max/SKILL.md": skillContent,
+                    "ui-ux-pro-max/.skill-id": ".claude/skills/ui-ux-pro-max"
+                ]
+            )
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        let skill = skills.first!
+        #expect(skill.id == "ui-ux-pro-max")
+        #expect(skill.repoPath == ".claude/skills")
+        #expect(skill.uniqueKey == ".claude/skills/ui-ux-pro-max")
+    }
+
+    @Test func `local skill without skill-id has nil repoPath`() async throws {
+        let skillContent = """
+        ---
+        name: local-skill
+        description: A purely local skill
+        ---
+        # Local Skill
+        """
+
+        let repo = LocalSkillRepository(
+            provider: .claude,
+            fileManager: MockFileManager(
+                directoryExists: true,
+                contents: ["local-skill"],
+                skillFiles: [
+                    "local-skill/SKILL.md": skillContent
+                    // No .skill-id file
+                ]
+            )
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        let skill = skills.first!
+        #expect(skill.id == "local-skill")
+        #expect(skill.repoPath == nil)
+        #expect(skill.uniqueKey == "local-skill")
+    }
 }
 
 // MARK: - Mock File Manager

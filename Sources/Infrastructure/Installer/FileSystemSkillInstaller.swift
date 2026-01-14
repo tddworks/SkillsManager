@@ -30,8 +30,8 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             // Skip if already installed
             guard !skill.isInstalledFor(provider) else { continue }
 
-            // Use folderName for installation path (not the full id which may have prefixes)
-            let targetPath = "\(provider.skillsPath)/\(skill.folderName)"
+            // skill.id is the folder name used for installation path
+            let targetPath = "\(provider.skillsPath)/\(skill.id)"
 
             // Create directory
             try createDirectory(at: targetPath)
@@ -41,13 +41,14 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             try writeFile(content: skill.content, to: skillMdPath)
 
             // Write .skill-id metadata to track which variant was installed
+            // Store uniqueKey (repoPath/id) to distinguish variants
             let metadataPath = "\(targetPath)/.skill-id"
-            try writeFile(content: skill.id, to: metadataPath)
+            try writeFile(content: skill.uniqueKey, to: metadataPath)
 
             // If remote, fetch additional files (references, scripts, assets)
             if case .remote(let repoUrl) = skill.source {
                 try await fetchAdditionalFiles(
-                    skillId: skill.folderName,
+                    skillId: skill.id,
                     repoUrl: repoUrl,
                     targetPath: targetPath
                 )
@@ -60,7 +61,7 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
     }
 
     public func uninstall(_ skill: Skill, from provider: Provider) async throws -> Skill {
-        let targetPath = "\(provider.skillsPath)/\(skill.folderName)"
+        let targetPath = "\(provider.skillsPath)/\(skill.id)"
 
         if fileManager.fileExists(atPath: targetPath) {
             try fileManager.removeItem(atPath: targetPath)

@@ -205,9 +205,10 @@ public final class SkillLibrary {
                     print("[SkillLibrary] Found \(remoteSkills.count) skills in \(repo.name)")
 
                     for skill in remoteSkills {
-                        let key = "\(repo.id)-\(skill.id)"
-                        // Match by skill ID to sync installation status
-                        if let existing = merged[skill.id] {
+                        // Use uniqueKey (repoPath + id) for deduplication
+                        let key = "\(repo.id)-\(skill.uniqueKey)"
+                        // Match by uniqueKey to sync installation status
+                        if let existing = merged[skill.uniqueKey] {
                             // Mark remote version with installation status from local
                             let remoteVersion = Skill(
                                 id: skill.id,
@@ -216,10 +217,10 @@ public final class SkillLibrary {
                                 version: skill.version,
                                 content: skill.content,
                                 source: skill.source,
+                                repoPath: skill.repoPath,
                                 installedProviders: existing.installedProviders,
                                 referenceCount: skill.referenceCount,
-                                scriptCount: skill.scriptCount,
-                                folderName: skill.folderName
+                                scriptCount: skill.scriptCount
                             )
                             merged[key] = remoteVersion
                         } else {

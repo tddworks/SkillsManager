@@ -236,6 +236,80 @@ struct SkillTests {
         #expect(updated.scriptCount == original.scriptCount)
     }
 
+    // MARK: - Display Name
+
+    @Test func `local skill displayName is just the name`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "UI skill",
+            version: "1.0.0",
+            content: "",
+            source: .local(provider: .claude),
+            repoPath: ".claude/skills"  // Even if repoPath is set, local shows just name
+        )
+
+        #expect(skill.displayName == "UI/UX Pro Max")
+    }
+
+    @Test func `remote skill without repoPath displayName is just the name`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "UI skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "https://github.com/example/skills"),
+            repoPath: nil
+        )
+
+        #expect(skill.displayName == "UI/UX Pro Max")
+    }
+
+    @Test func `remote skill with repoPath displayName shows path context`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "UI skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: "https://github.com/example/skills"),
+            repoPath: ".claude/skills"
+        )
+
+        #expect(skill.displayName == "UI/UX Pro Max (.claude/skills)")
+    }
+
+    // MARK: - Unique Key
+
+    @Test func `uniqueKey without repoPath is just the id`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "UI skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            repoPath: nil
+        )
+
+        #expect(skill.uniqueKey == "ui-ux-pro-max")
+    }
+
+    @Test func `uniqueKey with repoPath combines path and id`() {
+        let skill = Skill(
+            id: "ui-ux-pro-max",
+            name: "UI/UX Pro Max",
+            description: "UI skill",
+            version: "1.0.0",
+            content: "",
+            source: .remote(repoUrl: ""),
+            repoPath: ".claude/skills"
+        )
+
+        #expect(skill.uniqueKey == ".claude/skills/ui-ux-pro-max")
+    }
+
 }
 
 // MARK: - SkillSource Tests

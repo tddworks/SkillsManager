@@ -222,7 +222,7 @@ struct SidebarView: View {
     // MARK: - Skills List
 
     private var skillsList: some View {
-        List(library.filteredSkills, selection: Binding(
+        List(library.filteredSkills, id: \.uniqueKey, selection: Binding(
             get: { library.selectedSkill },
             set: { skill in
                 if let skill {

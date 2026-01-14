@@ -76,36 +76,16 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
         var skillInfos: [(folderName: String, parentPath: String, content: String)] = []
         collectSkillInfos(in: localPath, relativePath: "", infos: &skillInfos)
 
-        // Create skills with unique IDs based on path
+        // Create skills - id is folder name, repoPath is parent path
         var skills: [Skill] = []
-        var usedIds: Set<String> = []
 
         for info in skillInfos {
-            // Create unique ID from parent path + folder name
-            let skillId: String
-            if info.parentPath.isEmpty {
-                skillId = info.folderName
-            } else {
-                // Use parent path to make ID unique (e.g., ".claude-skills-ui-ux-pro-max")
-                let pathPrefix = info.parentPath.replacingOccurrences(of: "/", with: "-")
-                skillId = "\(pathPrefix)-\(info.folderName)"
-            }
-
-            // Handle edge case of duplicate IDs
-            var finalId = skillId
-            var counter = 2
-            while usedIds.contains(finalId) {
-                finalId = "\(skillId)-\(counter)"
-                counter += 1
-            }
-            usedIds.insert(finalId)
-
             do {
                 let skill = try SkillParser.parse(
                     content: info.content,
-                    id: finalId,
+                    id: info.folderName,
                     source: .remote(repoUrl: repoUrl),
-                    folderName: info.folderName
+                    repoPath: info.parentPath.isEmpty ? nil : info.parentPath
                 )
                 skills.append(skill)
             } catch {

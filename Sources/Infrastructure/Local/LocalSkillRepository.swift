@@ -49,15 +49,25 @@ public final class LocalSkillRepository: SkillRepository, @unchecked Sendable {
             if let data = fileManager.contents(atPath: skillFilePath),
                let content = String(data: data, encoding: .utf8) {
                 // Found a skill!
-                // Check for .skill-id metadata to get the original ID
+                // Check for .skill-id metadata which stores uniqueKey (repoPath/id)
                 let metadataPath = (itemPath as NSString).appendingPathComponent(".skill-id")
                 let skillId: String
+                let repoPath: String?
+
                 if let idData = fileManager.contents(atPath: metadataPath),
-                   let storedId = String(data: idData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !storedId.isEmpty {
-                    skillId = storedId
+                   let storedKey = String(data: idData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !storedKey.isEmpty {
+                    // Parse uniqueKey: "repoPath/id" or just "id"
+                    if let lastSlash = storedKey.lastIndex(of: "/") {
+                        repoPath = String(storedKey[..<lastSlash])
+                        skillId = String(storedKey[storedKey.index(after: lastSlash)...])
+                    } else {
+                        skillId = storedKey
+                        repoPath = nil
+                    }
                 } else {
                     skillId = item  // Fall back to folder name
+                    repoPath = nil
                 }
 
                 do {
@@ -65,7 +75,7 @@ public final class LocalSkillRepository: SkillRepository, @unchecked Sendable {
                         content: content,
                         id: skillId,
                         source: .local(provider: provider),
-                        folderName: item
+                        repoPath: repoPath
                     )
                     skills.append(skill)
                 } catch {
