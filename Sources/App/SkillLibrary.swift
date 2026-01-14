@@ -203,6 +203,9 @@ public final class SkillLibrary {
                     let remoteRepo = ClonedRepoSkillRepository(repoUrl: repo.url)
                     let remoteSkills = try await remoteRepo.fetchAll()
                     print("[SkillLibrary] Found \(remoteSkills.count) skills in \(repo.name)")
+                    for skill in remoteSkills {
+                        print("[SkillLibrary]   - id: \(skill.id), name: \(skill.name)")
+                    }
 
                     for skill in remoteSkills {
                         let key = "\(repo.id)-\(skill.id)"

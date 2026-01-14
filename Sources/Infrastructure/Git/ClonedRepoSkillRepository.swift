@@ -72,17 +72,58 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
             return []
         }
 
-        // Recursively find all skills from root
+        // First pass: collect all skills with their paths
+        var skillInfos: [(folderName: String, parentPath: String, content: String)] = []
+        collectSkillInfos(in: localPath, relativePath: "", infos: &skillInfos)
+
+        // Second pass: detect duplicates and assign unique IDs
+        var folderNameCounts: [String: Int] = [:]
+        for info in skillInfos {
+            folderNameCounts[info.folderName, default: 0] += 1
+        }
+
+        // Third pass: create skills with unique IDs
         var skills: [Skill] = []
-        findSkillsRecursively(in: localPath, relativePath: "", skills: &skills)
+        var usedIds: Set<String> = []
+
+        for info in skillInfos {
+            var skillId = info.folderName
+
+            // If this ID is already used, make it unique by adding parent path
+            if usedIds.contains(skillId) || folderNameCounts[info.folderName, default: 0] > 1 {
+                if !info.parentPath.isEmpty {
+                    // Use full parent path with dashes (e.g., "charts-skills-ui-ux-pro-max")
+                    let parentPrefix = info.parentPath.replacingOccurrences(of: "/", with: "-")
+                    skillId = "\(parentPrefix)-\(info.folderName)"
+                }
+            }
+
+            // If still duplicate (edge case), add a counter
+            var finalId = skillId
+            var counter = 2
+            while usedIds.contains(finalId) {
+                finalId = "\(skillId)-\(counter)"
+                counter += 1
+            }
+            usedIds.insert(finalId)
+
+            do {
+                let skill = try SkillParser.parse(
+                    content: info.content,
+                    id: finalId,
+                    source: .remote(repoUrl: repoUrl)
+                )
+                skills.append(skill)
+            } catch {
+                // Skip invalid skills
+            }
+        }
 
         return skills.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Recursively search for SKILL.md files in directories.
-    /// A skill is any directory containing a SKILL.md file.
-    /// Uses relative path as skill ID to ensure uniqueness across nested directories.
-    private func findSkillsRecursively(in path: String, relativePath: String, skills: inout [Skill], maxDepth: Int = 5, currentDepth: Int = 0) {
+    /// Collect skill info (folder name, parent path, content) for all skills
+    private func collectSkillInfos(in path: String, relativePath: String, infos: inout [(folderName: String, parentPath: String, content: String)], maxDepth: Int = 5, currentDepth: Int = 0) {
         guard currentDepth < maxDepth else { return }
 
         guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
@@ -90,39 +131,20 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
         }
 
         for item in contents {
-            // Skip .git directory (not a skill location)
-            if item == ".git" {
-                continue
-            }
+            if item == ".git" { continue }
 
             let itemPath = (path as NSString).appendingPathComponent(item)
             let itemRelativePath = relativePath.isEmpty ? item : "\(relativePath)/\(item)"
 
-            // Skip non-directories
-            guard fileManager.isDirectory(atPath: itemPath) else {
-                continue
-            }
+            guard fileManager.isDirectory(atPath: itemPath) else { continue }
 
-            // Check for SKILL.md in this directory
             let skillFilePath = (itemPath as NSString).appendingPathComponent("SKILL.md")
 
             if let data = fileManager.contents(atPath: skillFilePath),
                let content = String(data: data, encoding: .utf8) {
-                // Found a skill! Use folder name as ID (this is what gets installed)
-                do {
-                    let skill = try SkillParser.parse(
-                        content: content,
-                        id: item,
-                        source: .remote(repoUrl: repoUrl)
-                    )
-                    skills.append(skill)
-                } catch {
-                    // Skip invalid skills
-                }
-                // Don't recurse into skill directories (a skill folder is a leaf)
+                infos.append((folderName: item, parentPath: relativePath, content: content))
             } else {
-                // No SKILL.md here, search subdirectories
-                findSkillsRecursively(in: itemPath, relativePath: itemRelativePath, skills: &skills, maxDepth: maxDepth, currentDepth: currentDepth + 1)
+                collectSkillInfos(in: itemPath, relativePath: itemRelativePath, infos: &infos, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             }
         }
     }

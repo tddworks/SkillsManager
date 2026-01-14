@@ -36,12 +36,17 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
 
     // MARK: - Computed Properties (Domain Behavior)
 
-    /// Display name that includes parent directory for nested skills
-    /// e.g., "charts/ui-ux-pro-max" → "charts / ui-ux-pro-max"
+    /// Display name for the skill
+    /// Shows path context when ID differs from name (e.g., ".claude / ui-ux-pro-max")
     public var displayName: String {
-        if id.contains("/") {
-            // For nested skills, show path components separated by " / "
-            return id.replacingOccurrences(of: "/", with: " / ")
+        // If ID ends with the name (possibly with dashes), extract the prefix
+        if id != name && id.hasSuffix(name) {
+            let prefixPart = String(id.dropLast(name.count + 1)) // +1 for the dash
+            if !prefixPart.isEmpty {
+                // Convert dashes back to " / " for display
+                let displayPrefix = prefixPart.replacingOccurrences(of: "-", with: " / ")
+                return "\(displayPrefix) / \(name)"
+            }
         }
         return name
     }
