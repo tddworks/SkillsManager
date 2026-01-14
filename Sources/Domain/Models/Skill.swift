@@ -11,6 +11,8 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     public var installedProviders: Set<Provider>
     public var referenceCount: Int
     public var scriptCount: Int
+    /// The actual folder name used for installation (may differ from id for deduplication)
+    public let folderName: String
 
     public init(
         id: String,
@@ -21,7 +23,8 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         source: SkillSource,
         installedProviders: Set<Provider> = [],
         referenceCount: Int = 0,
-        scriptCount: Int = 0
+        scriptCount: Int = 0,
+        folderName: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -32,6 +35,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         self.installedProviders = installedProviders
         self.referenceCount = referenceCount
         self.scriptCount = scriptCount
+        self.folderName = folderName ?? id  // Default to id if not specified
     }
 
     // MARK: - Computed Properties (Domain Behavior)
@@ -103,7 +107,8 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
             source: source,
             installedProviders: installedProviders,
             referenceCount: referenceCount,
-            scriptCount: scriptCount
+            scriptCount: scriptCount,
+            folderName: folderName
         )
     }
 }

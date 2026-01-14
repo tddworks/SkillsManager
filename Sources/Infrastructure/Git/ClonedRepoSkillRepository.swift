@@ -111,7 +111,8 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
                 let skill = try SkillParser.parse(
                     content: info.content,
                     id: finalId,
-                    source: .remote(repoUrl: repoUrl)
+                    source: .remote(repoUrl: repoUrl),
+                    folderName: info.folderName  // Use original folder name for installation
                 )
                 skills.append(skill)
             } catch {

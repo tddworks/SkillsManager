@@ -30,7 +30,8 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             // Skip if already installed
             guard !skill.isInstalledFor(provider) else { continue }
 
-            let targetPath = "\(provider.skillsPath)/\(skill.id)"
+            // Use folderName for installation path (not the full id which may have prefixes)
+            let targetPath = "\(provider.skillsPath)/\(skill.folderName)"
 
             // Create directory
             try createDirectory(at: targetPath)
@@ -42,7 +43,7 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             // If remote, fetch additional files (references, scripts, assets)
             if case .remote(let repoUrl) = skill.source {
                 try await fetchAdditionalFiles(
-                    skillId: skill.id,
+                    skillId: skill.folderName,
                     repoUrl: repoUrl,
                     targetPath: targetPath
                 )
@@ -55,7 +56,7 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
     }
 
     public func uninstall(_ skill: Skill, from provider: Provider) async throws -> Skill {
-        let targetPath = "\(provider.skillsPath)/\(skill.id)"
+        let targetPath = "\(provider.skillsPath)/\(skill.folderName)"
 
         if fileManager.fileExists(atPath: targetPath) {
             try fileManager.removeItem(atPath: targetPath)

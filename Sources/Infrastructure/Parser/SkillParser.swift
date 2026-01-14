@@ -15,11 +15,12 @@ public enum SkillParser {
     /// Parse a SKILL.md file content into a Skill model
     /// - Parameters:
     ///   - content: The raw string content of the SKILL.md file
-    ///   - id: The skill identifier (usually directory name)
+    ///   - id: The skill identifier (may include path prefix for uniqueness)
     ///   - source: Where the skill comes from (local or remote)
+    ///   - folderName: The actual folder name for installation (defaults to id)
     /// - Returns: A parsed Skill model
     /// - Throws: SkillParserError if parsing fails
-    public static func parse(content: String, id: String, source: SkillSource) throws -> Skill {
+    public static func parse(content: String, id: String, source: SkillSource, folderName: String? = nil) throws -> Skill {
         // Extract frontmatter between --- markers
         guard let frontmatter = extractFrontmatter(from: content) else {
             throw SkillParserError.missingFrontmatter
@@ -44,7 +45,8 @@ public enum SkillParser {
             description: description,
             version: version,
             content: content,
-            source: source
+            source: source,
+            folderName: folderName
         )
     }
 

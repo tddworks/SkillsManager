@@ -220,7 +220,8 @@ public final class SkillLibrary {
                                 source: skill.source,
                                 installedProviders: existing.installedProviders,
                                 referenceCount: skill.referenceCount,
-                                scriptCount: skill.scriptCount
+                                scriptCount: skill.scriptCount,
+                                folderName: skill.folderName
                             )
                             merged[key] = remoteVersion
                         } else {
