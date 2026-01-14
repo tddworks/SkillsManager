@@ -95,15 +95,31 @@ public struct Skill: Sendable, Equatable, Identifiable {
 
 ### Provider
 
-Enum representing installation targets.
+Pure value object representing installation targets.
 
 ```swift
 public enum Provider: String, CaseIterable, Sendable {
     case codex
     case claude
 
-    public var displayName: String
-    public var skillsPath: String  // ~/.codex/skills/public or ~/.claude/skills
+    public var displayName: String  // "Codex" or "Claude Code"
+}
+```
+
+> **Note**: File system paths are resolved by `ProviderPathResolver` in the Infrastructure layer, not in the domain model.
+
+### SkillsCatalog
+
+Represents a remote skills catalog (GitHub repository containing skills).
+
+```swift
+public struct SkillsCatalog: Sendable, Equatable, Identifiable {
+    public let id: UUID
+    public let url: String
+    public let name: String
+    public let addedAt: Date
+
+    public var isValid: Bool  // Validates GitHub URL format
 }
 ```
 
@@ -126,14 +142,16 @@ public enum SkillSource: Sendable, Equatable {
 | Component | Purpose | Inputs | Outputs | Dependencies |
 |-----------|---------|--------|---------|--------------|
 | `Skill` | Rich domain model | name, desc, version, content | computed: isInstalled, providers | None |
-| `Provider` | Installation target enum | - | path, displayName | None |
+| `Provider` | Installation target enum | - | displayName | None |
 | `SkillSource` | Local vs Remote enum | - | displayName | None |
+| `SkillsCatalog` | Remote skills catalog | url, name | isValid | None |
 | `SkillRepository` | Protocol for fetching skills | source, query | [Skill] | None |
+| `ProviderPathResolver` | Resolve provider paths | Provider | path string | FileSystem |
 | `GitHubSkillRepository` | Fetch from GitHub | repo URL | [Skill] | NetworkClient |
-| `LocalSkillRepository` | Read local skills | provider paths | [Skill] | FileSystem |
+| `LocalSkillRepository` | Read local skills | provider | [Skill] | FileSystem, PathResolver |
 | `SkillParser` | Parse SKILL.md | fileContent | Skill metadata | None |
-| `SkillInstaller` | Copy skills to provider paths | Skill, [Provider] | Result | FileSystem |
-| `SkillManager` | Orchestrates all operations | - | skills state | Repositories, Installer |
+| `SkillInstaller` | Copy skills to provider paths | Skill, [Provider] | Result | FileSystem, PathResolver |
+| `SkillLibrary` | Orchestrates all operations | - | skills state | Repositories, Installer |
 
 ## Data Flow
 
@@ -176,17 +194,19 @@ SkillsManager/
 │   │   ├── Models/
 │   │   │   ├── Skill.swift
 │   │   │   ├── Provider.swift
-│   │   │   └── SkillSource.swift
-│   │   ├── Protocols/
-│   │   │   ├── SkillRepository.swift
-│   │   │   └── SkillInstaller.swift
-│   │   └── Services/
-│   │       └── SkillManager.swift
+│   │   │   ├── SkillSource.swift
+│   │   │   ├── SkillsCatalog.swift
+│   │   │   └── SkillEditor.swift
+│   │   └── Protocols/
+│   │       ├── SkillRepository.swift
+│   │       └── GitCLIClient.swift
 │   ├── Infrastructure/
 │   │   ├── GitHub/
 │   │   │   └── GitHubSkillRepository.swift
 │   │   ├── Local/
-│   │   │   └── LocalSkillRepository.swift
+│   │   │   ├── LocalSkillRepository.swift
+│   │   │   ├── LocalSkillWriter.swift
+│   │   │   └── ProviderPathResolver.swift
 │   │   ├── Parser/
 │   │   │   └── SkillParser.swift
 │   │   └── Installer/
@@ -207,10 +227,13 @@ SkillsManager/
 └── Tests/
     ├── DomainTests/
     │   ├── SkillTests.swift
-    │   └── ProviderTests.swift
+    │   ├── ProviderTests.swift
+    │   └── SkillEditorTests.swift
     └── InfrastructureTests/
         ├── SkillParserTests.swift
-        └── LocalSkillRepositoryTests.swift
+        ├── LocalSkillRepositoryTests.swift
+        ├── ProviderPathResolverTests.swift
+        └── FileSystemSkillInstallerTests.swift
 ```
 
 ## Key Patterns
