@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - Unreleased
 
+## [0.1.1] - 2026-01-14
+
+### Added
+
+- **Settings View** - New settings panel for managing app preferences and checking for updates
+- **Local Skill Editing** - Edit skills directly in the app with live preview support
+- **Skill Writer** - Save changes to local skills from within the app
+
+### Changed
+
+- **Refined UI Design** - Improved layout and visual design across all views
+
+## [0.1.0] - 2026-01-08
+
 ### Added
 
 - **Browse Remote Skills** - Discover skills from GitHub repositories like anthropics/skills
