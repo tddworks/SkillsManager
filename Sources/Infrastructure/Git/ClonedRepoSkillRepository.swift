@@ -72,33 +72,26 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
             return []
         }
 
-        // First pass: collect all skills with their paths
+        // Collect all skills with their paths
         var skillInfos: [(folderName: String, parentPath: String, content: String)] = []
         collectSkillInfos(in: localPath, relativePath: "", infos: &skillInfos)
 
-        // Second pass: detect duplicates and assign unique IDs
-        var folderNameCounts: [String: Int] = [:]
-        for info in skillInfos {
-            folderNameCounts[info.folderName, default: 0] += 1
-        }
-
-        // Third pass: create skills with unique IDs
+        // Create skills with unique IDs based on path
         var skills: [Skill] = []
         var usedIds: Set<String> = []
 
         for info in skillInfos {
-            var skillId = info.folderName
-
-            // If this ID is already used, make it unique by adding parent path
-            if usedIds.contains(skillId) || folderNameCounts[info.folderName, default: 0] > 1 {
-                if !info.parentPath.isEmpty {
-                    // Use full parent path with dashes (e.g., "charts-skills-ui-ux-pro-max")
-                    let parentPrefix = info.parentPath.replacingOccurrences(of: "/", with: "-")
-                    skillId = "\(parentPrefix)-\(info.folderName)"
-                }
+            // Create unique ID from parent path + folder name
+            let skillId: String
+            if info.parentPath.isEmpty {
+                skillId = info.folderName
+            } else {
+                // Use parent path to make ID unique (e.g., ".claude-skills-ui-ux-pro-max")
+                let pathPrefix = info.parentPath.replacingOccurrences(of: "/", with: "-")
+                skillId = "\(pathPrefix)-\(info.folderName)"
             }
 
-            // If still duplicate (edge case), add a counter
+            // Handle edge case of duplicate IDs
             var finalId = skillId
             var counter = 2
             while usedIds.contains(finalId) {
@@ -112,7 +105,7 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
                     content: info.content,
                     id: finalId,
                     source: .remote(repoUrl: repoUrl),
-                    folderName: info.folderName  // Use original folder name for installation
+                    folderName: info.folderName
                 )
                 skills.append(skill)
             } catch {

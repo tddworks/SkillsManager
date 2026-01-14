@@ -210,7 +210,7 @@ struct SkillDetailView: View {
 
     private func openInFinder() {
         guard case .local(let provider) = skill.source else { return }
-        let path = "\(provider.skillsPath)/\(skill.id)"
+        let path = "\(provider.skillsPath)/\(skill.folderName)"
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
     }
 }

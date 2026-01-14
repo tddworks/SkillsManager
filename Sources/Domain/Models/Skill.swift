@@ -41,16 +41,13 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     // MARK: - Computed Properties (Domain Behavior)
 
     /// Display name for the skill
-    /// Shows path context when ID differs from name (e.g., ".claude / ui-ux-pro-max")
+    /// Shows path context for remote skills with prefixed IDs
     public var displayName: String {
-        // If ID ends with the name (possibly with dashes), extract the prefix
-        if id != name && id.hasSuffix(name) {
-            let prefixPart = String(id.dropLast(name.count + 1)) // +1 for the dash
-            if !prefixPart.isEmpty {
-                // Convert dashes back to " / " for display
-                let displayPrefix = prefixPart.replacingOccurrences(of: "-", with: " / ")
-                return "\(displayPrefix) / \(name)"
-            }
+        // If ID has a path prefix (contains dash and differs from folderName)
+        if id != folderName && id.hasSuffix(folderName) {
+            let prefix = String(id.dropLast(folderName.count + 1))
+            let displayPrefix = prefix.replacingOccurrences(of: "-", with: " / ")
+            return "\(displayPrefix) / \(name)"
         }
         return name
     }

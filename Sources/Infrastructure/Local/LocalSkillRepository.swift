@@ -48,12 +48,24 @@ public final class LocalSkillRepository: SkillRepository, @unchecked Sendable {
 
             if let data = fileManager.contents(atPath: skillFilePath),
                let content = String(data: data, encoding: .utf8) {
-                // Found a skill! Use folder name as ID
+                // Found a skill!
+                // Check for .skill-id metadata to get the original ID
+                let metadataPath = (itemPath as NSString).appendingPathComponent(".skill-id")
+                let skillId: String
+                if let idData = fileManager.contents(atPath: metadataPath),
+                   let storedId = String(data: idData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !storedId.isEmpty {
+                    skillId = storedId
+                } else {
+                    skillId = item  // Fall back to folder name
+                }
+
                 do {
                     let skill = try SkillParser.parse(
                         content: content,
-                        id: item,
-                        source: .local(provider: provider)
+                        id: skillId,
+                        source: .local(provider: provider),
+                        folderName: item
                     )
                     skills.append(skill)
                 } catch {

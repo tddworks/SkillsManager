@@ -40,6 +40,10 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             let skillMdPath = "\(targetPath)/SKILL.md"
             try writeFile(content: skill.content, to: skillMdPath)
 
+            // Write .skill-id metadata to track which variant was installed
+            let metadataPath = "\(targetPath)/.skill-id"
+            try writeFile(content: skill.id, to: metadataPath)
+
             // If remote, fetch additional files (references, scripts, assets)
             if case .remote(let repoUrl) = skill.source {
                 try await fetchAdditionalFiles(

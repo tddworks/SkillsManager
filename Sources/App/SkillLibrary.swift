@@ -206,8 +206,8 @@ public final class SkillLibrary {
 
                     for skill in remoteSkills {
                         let key = "\(repo.id)-\(skill.id)"
-                        // Match by folderName (the true skill identity) to sync installation status
-                        if let existing = merged[skill.folderName] {
+                        // Match by skill ID to sync installation status
+                        if let existing = merged[skill.id] {
                             // Mark remote version with installation status from local
                             let remoteVersion = Skill(
                                 id: skill.id,
