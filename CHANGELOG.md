@@ -10,14 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2026-01-14
 
 ### Added
+- **Settings View**: New settings panel for managing app preferences and manually checking for updates via Sparkle integration.
+- **Local Skill Editing**: Edit skills directly in the app with a dedicated editor view. Changes are reflected in real-time with live preview support.
+- **Skill Writer**: Save changes to local skills from within the app using the new `LocalSkillWriter` infrastructure component.
 
-- **Settings View** - New settings panel for managing app preferences and checking for updates
-- **Local Skill Editing** - Edit skills directly in the app with live preview support
-- **Skill Writer** - Save changes to local skills from within the app
+### Improved
+- **Refined UI Design**: Improved layout and visual design across all views for a more polished user experience.
 
-### Changed
-
-- **Refined UI Design** - Improved layout and visual design across all views
+### Technical
+- Added `SettingsView` in `Sources/App/Views/Settings/` with update check integration
+- Created `SkillEditor` domain model in `Sources/Domain/Models/` for managing skill editing state
+- Added `SkillEditorView` in `Sources/App/Views/Detail/` for the editing interface
+- Created `LocalSkillWriter` in `Sources/Infrastructure/Local/` for persisting skill changes to disk
+- Added comprehensive tests for `SkillEditor` and `LocalSkillWriter`
 
 ## [0.1.0] - 2026-01-08
 
