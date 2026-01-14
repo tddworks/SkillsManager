@@ -11,6 +11,14 @@ public protocol SkillRepository: Sendable {
     func fetch(id: String) async throws -> Skill?
 }
 
+/// Protocol for saving skill content to disk
+@Mockable
+public protocol SkillWriter: Sendable {
+    /// Save skill content to its source location
+    /// - Parameter skill: The skill to save
+    func save(_ skill: Skill) async throws
+}
+
 /// Protocol for installing skills to a provider
 @Mockable
 public protocol SkillInstaller: Sendable {

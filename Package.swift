@@ -11,7 +11,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.3.0"),
-        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.5.0")
+        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.5.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.8.1")
     ],
     targets: [
         // Domain Layer
@@ -68,9 +69,13 @@ let package = Package(
             name: "App",
             dependencies: [
                 "Domain",
-                "Infrastructure"
+                "Infrastructure",
+                .product(name: "Sparkle", package: "Sparkle")
             ],
-            path: "Sources/App"
+            path: "Sources/App",
+            swiftSettings: [
+                .define("ENABLE_SPARKLE")
+            ]
         )
     ],
     swiftLanguageModes: [.v6]

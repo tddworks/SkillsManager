@@ -51,6 +51,11 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         scriptCount > 0
     }
 
+    /// Whether this skill can be edited (only local skills are editable)
+    public var isEditable: Bool {
+        source.isLocal
+    }
+
     /// Check if skill is installed for a specific provider
     public func isInstalledFor(_ provider: Provider) -> Bool {
         installedProviders.contains(provider)
@@ -70,5 +75,20 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         var updated = self
         updated.installedProviders.remove(provider)
         return updated
+    }
+
+    /// Returns a copy with updated content
+    public func updating(content newContent: String) -> Skill {
+        Skill(
+            id: id,
+            name: name,
+            description: description,
+            version: version,
+            content: newContent,
+            source: source,
+            installedProviders: installedProviders,
+            referenceCount: referenceCount,
+            scriptCount: scriptCount
+        )
     }
 }

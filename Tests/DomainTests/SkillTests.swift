@@ -181,6 +181,61 @@ struct SkillTests {
         #expect(updated.isInstalledFor(.claude) == false)
         #expect(updated.isInstalledFor(.codex) == true)
     }
+
+    // MARK: - Editable
+
+    @Test func `local skill is editable`() {
+        let skill = Skill(
+            id: "local-skill",
+            name: "Local Skill",
+            description: "A local skill",
+            version: "1.0.0",
+            content: "# Content",
+            source: .local(provider: .claude)
+        )
+
+        #expect(skill.isEditable == true)
+    }
+
+    @Test func `remote skill is not editable`() {
+        let skill = Skill(
+            id: "remote-skill",
+            name: "Remote Skill",
+            description: "A remote skill",
+            version: "1.0.0",
+            content: "# Content",
+            source: .remote(repoUrl: "https://github.com/example/skills")
+        )
+
+        #expect(skill.isEditable == false)
+    }
+
+    @Test func `updating content returns new skill with updated content`() {
+        let original = Skill(
+            id: "test-skill",
+            name: "Test",
+            description: "Test skill",
+            version: "1.0.0",
+            content: "# Original Content",
+            source: .local(provider: .claude),
+            installedProviders: [.claude],
+            referenceCount: 2,
+            scriptCount: 1
+        )
+
+        let updated = original.updating(content: "# Updated Content")
+
+        #expect(updated.content == "# Updated Content")
+        #expect(updated.id == original.id)
+        #expect(updated.name == original.name)
+        #expect(updated.description == original.description)
+        #expect(updated.version == original.version)
+        #expect(updated.source == original.source)
+        #expect(updated.installedProviders == original.installedProviders)
+        #expect(updated.referenceCount == original.referenceCount)
+        #expect(updated.scriptCount == original.scriptCount)
+    }
+
 }
 
 // MARK: - SkillSource Tests

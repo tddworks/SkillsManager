@@ -8,7 +8,9 @@ struct ContentView: View {
         NavigationSplitView {
             SidebarView(library: library)
         } detail: {
-            if let skill = library.selectedSkill {
+            if library.isEditing {
+                SkillEditorView(library: library)
+            } else if let skill = library.selectedSkill {
                 SkillDetailView(skill: skill, library: library)
             } else {
                 EmptyStateView()

@@ -39,6 +39,17 @@ struct SkillDetailView: View {
         .navigationSubtitle(skill.source.displayName)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                // Edit button (only for local skills)
+                if skill.isEditable {
+                    Button {
+                        library.startEditing()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .help("Edit skill")
+                }
+
                 // Install button
                 Button {
                     library.showInstall()
