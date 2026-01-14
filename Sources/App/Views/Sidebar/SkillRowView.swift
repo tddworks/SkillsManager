@@ -10,7 +10,7 @@ struct SkillRowView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             // Name with installed indicator
             HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-                Text(skill.name)
+                Text(skill.displayName)
                     .font(DesignSystem.Typography.headline)
                     .foregroundStyle(DesignSystem.Colors.primaryText)
                     .lineLimit(1)

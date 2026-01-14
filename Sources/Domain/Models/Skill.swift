@@ -36,6 +36,16 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
 
     // MARK: - Computed Properties (Domain Behavior)
 
+    /// Display name that includes parent directory for nested skills
+    /// e.g., "charts/ui-ux-pro-max" → "charts / ui-ux-pro-max"
+    public var displayName: String {
+        if id.contains("/") {
+            // For nested skills, show path components separated by " / "
+            return id.replacingOccurrences(of: "/", with: " / ")
+        }
+        return name
+    }
+
     /// Whether this skill is installed for any provider
     public var isInstalled: Bool {
         !installedProviders.isEmpty

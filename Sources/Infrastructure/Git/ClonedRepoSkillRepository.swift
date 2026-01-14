@@ -1,7 +1,8 @@
 import Foundation
 import Domain
 
-/// Repository for fetching skills by cloning GitHub repositories locally
+/// Repository for fetching skills by cloning GitHub repositories locally.
+/// Recursively searches the entire repository for any folder containing a SKILL.md file.
 public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendable {
     private let repoUrl: String
     private let owner: String
@@ -10,6 +11,11 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
     private let localPath: String
     private let gitClient: GitCLIClientProtocol
     private let fileManager: FileManagerProtocol
+
+    /// Clean URL for git clone (strips browser paths like /tree/master/...)
+    private var cloneUrl: String {
+        "https://github.com/\(owner)/\(repo).git"
+    }
 
     /// Default cache directory for cloned repositories
     public static var defaultCacheDirectory: String {
@@ -66,18 +72,17 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
             return []
         }
 
-        // Determine where skills are located
-        let searchPath = findSkillsDirectory()
-
-        // Recursively find all skills
+        // Recursively find all skills from root
         var skills: [Skill] = []
-        findSkillsRecursively(in: searchPath, skills: &skills)
+        findSkillsRecursively(in: localPath, relativePath: "", skills: &skills)
 
         return skills.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Recursively search for SKILL.md files in directories
-    private func findSkillsRecursively(in path: String, skills: inout [Skill], maxDepth: Int = 3, currentDepth: Int = 0) {
+    /// Recursively search for SKILL.md files in directories.
+    /// A skill is any directory containing a SKILL.md file.
+    /// Uses relative path as skill ID to ensure uniqueness across nested directories.
+    private func findSkillsRecursively(in path: String, relativePath: String, skills: inout [Skill], maxDepth: Int = 5, currentDepth: Int = 0) {
         guard currentDepth < maxDepth else { return }
 
         guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
@@ -85,12 +90,13 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
         }
 
         for item in contents {
-            // Skip hidden directories
-            if item.hasPrefix(".") {
+            // Skip .git directory (not a skill location)
+            if item == ".git" {
                 continue
             }
 
             let itemPath = (path as NSString).appendingPathComponent(item)
+            let itemRelativePath = relativePath.isEmpty ? item : "\(relativePath)/\(item)"
 
             // Skip non-directories
             guard fileManager.isDirectory(atPath: itemPath) else {
@@ -102,19 +108,21 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
 
             if let data = fileManager.contents(atPath: skillFilePath),
                let content = String(data: data, encoding: .utf8) {
+                // Found a skill! Use relative path as ID to ensure uniqueness
                 do {
                     let skill = try SkillParser.parse(
                         content: content,
-                        id: item,
+                        id: itemRelativePath,
                         source: .remote(repoUrl: repoUrl)
                     )
                     skills.append(skill)
                 } catch {
                     // Skip invalid skills
                 }
+                // Don't recurse into skill directories (a skill folder is a leaf)
             } else {
                 // No SKILL.md here, search subdirectories
-                findSkillsRecursively(in: itemPath, skills: &skills, maxDepth: maxDepth, currentDepth: currentDepth + 1)
+                findSkillsRecursively(in: itemPath, relativePath: itemRelativePath, skills: &skills, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             }
         }
     }
@@ -127,21 +135,48 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
             return nil
         }
 
-        // Try root first, then skills directory
-        for basePath in [localPath, "\(localPath)/skills"] {
-            let skillPath = (basePath as NSString).appendingPathComponent(id)
-            let skillFilePath = (skillPath as NSString).appendingPathComponent("SKILL.md")
+        // Recursively search for the skill by id
+        return findSkillById(id, in: localPath)
+    }
 
-            guard let data = fileManager.contents(atPath: skillFilePath),
-                  let content = String(data: data, encoding: .utf8) else {
+    /// Recursively search for a skill by its id (directory name)
+    private func findSkillById(_ id: String, in path: String, maxDepth: Int = 5, currentDepth: Int = 0) -> Skill? {
+        guard currentDepth < maxDepth else { return nil }
+
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
+            return nil
+        }
+
+        for item in contents {
+            // Skip .git directory
+            if item == ".git" {
                 continue
             }
 
-            return try SkillParser.parse(
-                content: content,
-                id: id,
-                source: .remote(repoUrl: repoUrl)
-            )
+            let itemPath = (path as NSString).appendingPathComponent(item)
+
+            // Skip non-directories
+            guard fileManager.isDirectory(atPath: itemPath) else {
+                continue
+            }
+
+            // Check if this directory matches the id and has SKILL.md
+            if item == id {
+                let skillFilePath = (itemPath as NSString).appendingPathComponent("SKILL.md")
+                if let data = fileManager.contents(atPath: skillFilePath),
+                   let content = String(data: data, encoding: .utf8) {
+                    return try? SkillParser.parse(
+                        content: content,
+                        id: id,
+                        source: .remote(repoUrl: repoUrl)
+                    )
+                }
+            }
+
+            // Recurse into subdirectories
+            if let found = findSkillById(id, in: itemPath, maxDepth: maxDepth, currentDepth: currentDepth + 1) {
+                return found
+            }
         }
 
         return nil
@@ -177,20 +212,8 @@ public final class ClonedRepoSkillRepository: SkillRepository, @unchecked Sendab
             // Repository exists, pull latest changes
             try await gitClient.pull(at: localPath)
         } else {
-            // Clone the repository
-            try await gitClient.clone(url: repoUrl, to: localPath)
+            // Clone the repository using clean URL (strips browser paths)
+            try await gitClient.clone(url: cloneUrl, to: localPath)
         }
-    }
-
-    private func findSkillsDirectory() -> String {
-        // Check if there's a "skills" subdirectory
-        let skillsSubdir = (localPath as NSString).appendingPathComponent("skills")
-
-        if fileManager.isDirectory(atPath: skillsSubdir) {
-            return skillsSubdir
-        }
-
-        // Otherwise, use root directory
-        return localPath
     }
 }

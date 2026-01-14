@@ -113,7 +113,7 @@ struct SkillDetailView: View {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                     // Skill name
-                    Text(skill.name)
+                    Text(skill.displayName)
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(DesignSystem.Colors.primaryText)
 

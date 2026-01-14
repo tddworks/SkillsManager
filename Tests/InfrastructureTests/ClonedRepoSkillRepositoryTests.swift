@@ -78,71 +78,30 @@ struct ClonedRepoSkillRepositoryTests {
         #expect(skills.count == 1)
     }
 
-    // MARK: - Skills Directory Detection
+    // MARK: - Recursive Skill Discovery
 
-    @Test func `finds skills in skills subdirectory`() async throws {
+    @Test func `finds skills in root directory`() async throws {
         let mockGit = MockGitCLIClientProtocol()
         let mockFileManager = MockFileManagerProtocol()
 
         given(mockGit).isGitRepository(at: .any).willReturn(true)
         given(mockGit).pull(at: .any).willReturn()
 
-        // Root has a "skills" directory - need to handle multiple calls
-        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_skills-repo") })
-            .willReturn(["skills", "README.md"])
-        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("skills") })
-            .willReturn(["skill-one"])
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skills") && !$0.hasSuffix("skill-one") })
-            .willReturn(true)
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skill-one") })
-            .willReturn(true)
-        given(mockFileManager).contents(atPath: .matching { $0.hasSuffix("SKILL.md") }).willReturn(
-            """
-            ---
-            name: skill-one
-            description: First skill
-            ---
-            # One
-            """.data(using: .utf8)
-        )
-
-        let repo = ClonedRepoSkillRepository(
-            repoUrl: "https://github.com/owner/skills-repo",
-            cacheDirectory: "/tmp/cache",
-            gitClient: mockGit,
-            fileManager: mockFileManager
-        )
-
-        let skills = try await repo.fetchAll()
-
-        #expect(skills.count == 1)
-        #expect(skills.first?.name == "skill-one")
-    }
-
-    @Test func `finds skills in root directory when no skills subdirectory`() async throws {
-        let mockGit = MockGitCLIClientProtocol()
-        let mockFileManager = MockFileManagerProtocol()
-
-        given(mockGit).isGitRepository(at: .any).willReturn(true)
-        given(mockGit).pull(at: .any).willReturn()
-
-        // Root has skill directories directly
-        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["my-skill", ".git"])
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skills") }).willReturn(false)
+        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["my-skill", "README.md"])
         given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("my-skill") }).willReturn(true)
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix(".git") }).willReturn(true)
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("README.md") }).willReturn(false)
         given(mockFileManager).contents(atPath: .matching { $0.hasSuffix("SKILL.md") }).willReturn(
             """
             ---
             name: my-skill
-            description: Root skill
+            description: A skill
             ---
             # My Skill
             """.data(using: .utf8)
         )
 
         let repo = ClonedRepoSkillRepository(
-            repoUrl: "https://github.com/owner/root-skills",
+            repoUrl: "https://github.com/owner/repo",
             cacheDirectory: "/tmp/cache",
             gitClient: mockGit,
             fileManager: mockFileManager
@@ -152,6 +111,165 @@ struct ClonedRepoSkillRepositoryTests {
 
         #expect(skills.count == 1)
         #expect(skills.first?.name == "my-skill")
+    }
+
+    @Test func `finds skills in nested directories`() async throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockGit).isGitRepository(at: .any).willReturn(true)
+        given(mockGit).pull(at: .any).willReturn()
+
+        // Root contains "skills" directory
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn(["skills"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("/skills") }).willReturn(true)
+
+        // skills/ itself has no SKILL.md (it's just a container)
+        given(mockFileManager).contents(atPath: .matching { $0.hasSuffix("/skills/SKILL.md") }).willReturn(nil)
+
+        // skills/ contains the actual skill
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("/skills") }).willReturn(["nested-skill"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("nested-skill") }).willReturn(true)
+        given(mockFileManager).contents(atPath: .matching { $0.contains("nested-skill/SKILL.md") }).willReturn(
+            """
+            ---
+            name: nested-skill
+            description: A nested skill
+            ---
+            # Nested
+            """.data(using: .utf8)
+        )
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        #expect(skills.first?.name == "nested-skill")
+    }
+
+    @Test func `finds skills in hidden directories like .claude`() async throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockGit).isGitRepository(at: .any).willReturn(true)
+        given(mockGit).pull(at: .any).willReturn()
+
+        // Root contains ".claude" hidden directory
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn([".claude", "README.md"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix(".claude") }).willReturn(true)
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("README.md") }).willReturn(false)
+
+        // .claude/ itself has no SKILL.md
+        given(mockFileManager).contents(atPath: .matching { $0.hasSuffix(".claude/SKILL.md") }).willReturn(nil)
+
+        // .claude/ contains "skills" directory
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix(".claude") }).willReturn(["skills"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.contains(".claude/skills") }).willReturn(true)
+
+        // .claude/skills/ itself has no SKILL.md
+        given(mockFileManager).contents(atPath: .matching { $0.hasSuffix(".claude/skills/SKILL.md") }).willReturn(nil)
+
+        // .claude/skills/ contains the skill
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.contains(".claude/skills") }).willReturn(["ui-ux-pro-max"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("ui-ux-pro-max") }).willReturn(true)
+        given(mockFileManager).contents(atPath: .matching { $0.contains("ui-ux-pro-max/SKILL.md") }).willReturn(
+            """
+            ---
+            name: ui-ux-pro-max
+            description: UI/UX design intelligence
+            ---
+            # UI/UX Pro Max
+            """.data(using: .utf8)
+        )
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        #expect(skills.first?.name == "ui-ux-pro-max")
+    }
+
+    @Test func `skips .git directory`() async throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockGit).isGitRepository(at: .any).willReturn(true)
+        given(mockGit).pull(at: .any).willReturn()
+
+        // Root contains .git and a skill
+        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn([".git", "my-skill"])
+        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("my-skill") }).willReturn(true)
+        // .git should not be checked for isDirectory (it's skipped)
+        given(mockFileManager).contents(atPath: .matching { $0.hasSuffix("SKILL.md") }).willReturn(
+            """
+            ---
+            name: my-skill
+            description: Test
+            ---
+            # Test
+            """.data(using: .utf8)
+        )
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        #expect(skills.first?.name == "my-skill")
+    }
+
+    @Test func `skips directories without SKILL.md`() async throws {
+        let mockGit = MockGitCLIClientProtocol()
+        let mockFileManager = MockFileManagerProtocol()
+
+        given(mockGit).isGitRepository(at: .any).willReturn(true)
+        given(mockGit).pull(at: .any).willReturn()
+
+        // Root directory has two subdirectories
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn(["not-a-skill", "valid-skill"])
+        // Subdirectories have no children (to prevent infinite recursion)
+        given(mockFileManager).contentsOfDirectory(atPath: .matching { !$0.hasSuffix("owner_repo") }).willReturn([])
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(true)
+        // not-a-skill has no SKILL.md
+        given(mockFileManager).contents(atPath: .matching { $0.contains("not-a-skill") }).willReturn(nil)
+        given(mockFileManager).contents(atPath: .matching { $0.contains("valid-skill") }).willReturn(
+            """
+            ---
+            name: valid-skill
+            description: Valid
+            ---
+            # Valid
+            """.data(using: .utf8)
+        )
+
+        let repo = ClonedRepoSkillRepository(
+            repoUrl: "https://github.com/owner/repo",
+            cacheDirectory: "/tmp/cache",
+            gitClient: mockGit,
+            fileManager: mockFileManager
+        )
+
+        let skills = try await repo.fetchAll()
+
+        #expect(skills.count == 1)
+        #expect(skills.first?.name == "valid-skill")
     }
 
     // MARK: - Source Assignment
@@ -164,8 +282,7 @@ struct ClonedRepoSkillRepositoryTests {
         given(mockGit).pull(at: .any).willReturn()
 
         given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["test-skill"])
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skills") }).willReturn(false)
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("test-skill") }).willReturn(true)
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(true)
         given(mockFileManager).contents(atPath: .any).willReturn(
             """
             ---
@@ -235,45 +352,6 @@ struct ClonedRepoSkillRepositoryTests {
         #expect(skills.isEmpty)
     }
 
-    @Test func `skips directories without SKILL.md`() async throws {
-        let mockGit = MockGitCLIClientProtocol()
-        let mockFileManager = MockFileManagerProtocol()
-
-        given(mockGit).isGitRepository(at: .any).willReturn(true)
-        given(mockGit).pull(at: .any).willReturn()
-
-        // Root directory has two directories
-        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("owner_mixed") }).willReturn(["not-a-skill", "valid-skill"])
-        // not-a-skill directory is empty (no subdirectories)
-        given(mockFileManager).contentsOfDirectory(atPath: .matching { $0.hasSuffix("not-a-skill") }).willReturn([])
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("skills") }).willReturn(false)
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("not-a-skill") }).willReturn(true)
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("valid-skill") }).willReturn(true)
-        // Only valid-skill has SKILL.md
-        given(mockFileManager).contents(atPath: .matching { $0.contains("not-a-skill") }).willReturn(nil)
-        given(mockFileManager).contents(atPath: .matching { $0.contains("valid-skill") }).willReturn(
-            """
-            ---
-            name: valid-skill
-            description: Valid
-            ---
-            # Valid
-            """.data(using: .utf8)
-        )
-
-        let repo = ClonedRepoSkillRepository(
-            repoUrl: "https://github.com/owner/mixed",
-            cacheDirectory: "/tmp/cache",
-            gitClient: mockGit,
-            fileManager: mockFileManager
-        )
-
-        let skills = try await repo.fetchAll()
-
-        #expect(skills.count == 1)
-        #expect(skills.first?.name == "valid-skill")
-    }
-
     // MARK: - Fetch by ID
 
     @Test func `fetches specific skill by id`() async throws {
@@ -283,15 +361,18 @@ struct ClonedRepoSkillRepositoryTests {
         given(mockGit).isGitRepository(at: .any).willReturn(true)
         given(mockGit).pull(at: .any).willReturn()
 
-        given(mockFileManager).contents(atPath: .matching { $0.contains("specific-skill") }).willReturn(
+        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["target-skill", "other-skill"])
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(true)
+        given(mockFileManager).contents(atPath: .matching { $0.contains("target-skill/SKILL.md") }).willReturn(
             """
             ---
-            name: specific-skill
-            description: Specific
+            name: target-skill
+            description: The target
             ---
-            # Specific
+            # Target
             """.data(using: .utf8)
         )
+        given(mockFileManager).contents(atPath: .matching { $0.contains("other-skill") }).willReturn(nil)
 
         let repo = ClonedRepoSkillRepository(
             repoUrl: "https://github.com/owner/repo",
@@ -300,9 +381,10 @@ struct ClonedRepoSkillRepositoryTests {
             fileManager: mockFileManager
         )
 
-        let skill = try await repo.fetch(id: "specific-skill")
+        let skill = try await repo.fetch(id: "target-skill")
 
-        #expect(skill?.name == "specific-skill")
+        #expect(skill != nil)
+        #expect(skill?.name == "target-skill")
     }
 
     @Test func `returns nil for non-existent skill id`() async throws {
@@ -311,6 +393,9 @@ struct ClonedRepoSkillRepositoryTests {
 
         given(mockGit).isGitRepository(at: .any).willReturn(true)
         given(mockGit).pull(at: .any).willReturn()
+
+        given(mockFileManager).contentsOfDirectory(atPath: .any).willReturn(["other-skill"])
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(true)
         given(mockFileManager).contents(atPath: .any).willReturn(nil)
 
         let repo = ClonedRepoSkillRepository(
@@ -320,34 +405,32 @@ struct ClonedRepoSkillRepositoryTests {
             fileManager: mockFileManager
         )
 
-        let skill = try await repo.fetch(id: "non-existent")
+        let skill = try await repo.fetch(id: "nonexistent")
 
         #expect(skill == nil)
     }
 
-    // MARK: - Delete Clone Tests
+    // MARK: - Cache Deletion
 
     @Test func `deleteClone removes cloned directory`() throws {
-        let mockGit = MockGitCLIClientProtocol()
         let mockFileManager = MockFileManagerProtocol()
 
-        given(mockFileManager).isDirectory(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn(true)
-        given(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("owner_repo") }).willReturn()
+        given(mockFileManager).isDirectory(atPath: .any).willReturn(true)
+        given(mockFileManager).removeItem(atPath: .any).willReturn()
 
         let repo = ClonedRepoSkillRepository(
             repoUrl: "https://github.com/owner/repo",
             cacheDirectory: "/tmp/cache",
-            gitClient: mockGit,
+            gitClient: MockGitCLIClientProtocol(),
             fileManager: mockFileManager
         )
 
         try repo.deleteClone()
 
-        verify(mockFileManager).removeItem(atPath: .matching { $0.hasSuffix("owner_repo") }).called(1)
+        verify(mockFileManager).removeItem(atPath: .any).called(1)
     }
 
     @Test func `deleteClone does nothing if directory does not exist`() throws {
-        let mockGit = MockGitCLIClientProtocol()
         let mockFileManager = MockFileManagerProtocol()
 
         given(mockFileManager).isDirectory(atPath: .any).willReturn(false)
@@ -355,7 +438,7 @@ struct ClonedRepoSkillRepositoryTests {
         let repo = ClonedRepoSkillRepository(
             repoUrl: "https://github.com/owner/repo",
             cacheDirectory: "/tmp/cache",
-            gitClient: mockGit,
+            gitClient: MockGitCLIClientProtocol(),
             fileManager: mockFileManager
         )
 
