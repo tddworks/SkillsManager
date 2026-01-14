@@ -268,17 +268,32 @@ public final class SkillLibrary {
 
         do {
             let installer = FileSystemSkillInstaller()
-            _ = try await installer.install(skill, to: providers)
+            let updatedSkill = try await installer.install(skill, to: providers)
 
-            // Reload local skills to pick up new installations
-            await reloadLocalSkills()
-
-            // Update selected skill with new installation status
-            if let updated = skills.first(where: { $0.uniqueKey == skill.uniqueKey && $0.source.isLocal }) {
-                selectedSkill = updated
-            } else if let updated = skills.first(where: { $0.uniqueKey == skill.uniqueKey }) {
-                selectedSkill = updated
+            // Update installedProviders on all matching skills (remote views)
+            for index in skills.indices {
+                if skills[index].uniqueKey == skill.uniqueKey {
+                    skills[index] = skills[index].withInstalledProviders(updatedSkill.installedProviders)
+                }
             }
+
+            // Add local skill entry if not exists (for local view)
+            if !skills.contains(where: { $0.source.isLocal && $0.uniqueKey == skill.uniqueKey }) {
+                let localSkill = Skill(
+                    id: skill.id,
+                    name: skill.name,
+                    description: skill.description,
+                    version: skill.version,
+                    content: skill.content,
+                    source: .local(provider: providers.first!),
+                    repoPath: skill.repoPath,
+                    installedProviders: updatedSkill.installedProviders
+                )
+                skills.append(localSkill)
+                skills.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
+
+            selectedSkill = updatedSkill
 
         } catch {
             errorMessage = "Installation failed: \(error.localizedDescription)"
@@ -304,15 +319,21 @@ public final class SkillLibrary {
 
         do {
             let installer = FileSystemSkillInstaller()
-            _ = try await installer.uninstall(skill, from: provider)
+            let updatedSkill = try await installer.uninstall(skill, from: provider)
 
-            // Reload local skills to reflect uninstallation
-            await reloadLocalSkills()
-
-            // Update selected skill - prefer matching remote skill if local was removed
-            if let updated = skills.first(where: { $0.uniqueKey == skill.uniqueKey }) {
-                selectedSkill = updated
+            // Update installedProviders on all matching skills
+            for index in skills.indices {
+                if skills[index].uniqueKey == skill.uniqueKey {
+                    skills[index] = skills[index].withInstalledProviders(updatedSkill.installedProviders)
+                }
             }
+
+            // Remove local skill entry if fully uninstalled
+            if updatedSkill.installedProviders.isEmpty {
+                skills.removeAll { $0.source.isLocal && $0.uniqueKey == skill.uniqueKey }
+            }
+
+            selectedSkill = updatedSkill
 
         } catch {
             errorMessage = "Uninstall failed: \(error.localizedDescription)"
@@ -363,62 +384,6 @@ public final class SkillLibrary {
         }
     }
 
-    // MARK: - Private Helpers
-
-    /// Reload only local skills (fast - no git clone) and sync with remote skills
-    /// Call this after install/uninstall to update local view without full refresh
-    private func reloadLocalSkills() async {
-        do {
-            // Fetch local skills from both providers (fast filesystem operation)
-            async let claudeSkills = claudeRepo.fetchAll()
-            async let codexSkills = codexRepo.fetchAll()
-            let (claude, codex) = try await (claudeSkills, codexSkills)
-
-            // Build map of local skills by uniqueKey
-            var localByKey: [String: Skill] = [:]
-            for skill in claude {
-                localByKey[skill.uniqueKey] = skill.installing(for: .claude)
-            }
-            for skill in codex {
-                if var existing = localByKey[skill.uniqueKey] {
-                    existing = existing.installing(for: .codex)
-                    localByKey[skill.uniqueKey] = existing
-                } else {
-                    localByKey[skill.uniqueKey] = skill.installing(for: .codex)
-                }
-            }
-
-            // Update skills array:
-            // 1. Remove old local skills
-            // 2. Add new local skills
-            // 3. Sync installation status to remote skills
-            var updatedSkills = skills.filter { !$0.source.isLocal }
-
-            // Add local skills
-            for localSkill in localByKey.values {
-                updatedSkills.append(localSkill)
-            }
-
-            // Sync installation status to remote skills
-            for index in updatedSkills.indices {
-                if !updatedSkills[index].source.isLocal {
-                    if let localSkill = localByKey[updatedSkills[index].uniqueKey] {
-                        updatedSkills[index] = updatedSkills[index].withInstalledProviders(localSkill.installedProviders)
-                    } else {
-                        // Not installed locally anymore
-                        updatedSkills[index] = updatedSkills[index].withInstalledProviders([])
-                    }
-                }
-            }
-
-            skills = updatedSkills.sorted {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-
-        } catch {
-            print("[SkillLibrary] Failed to reload local skills: \(error)")
-        }
-    }
 }
 
 /// Filter for skill sources
