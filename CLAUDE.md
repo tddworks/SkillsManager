@@ -32,18 +32,19 @@ Three-layer architecture with clean separation:
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Domain (Sources/Domain/)                                           │
-│  - Rich domain models with behavior (Skill, Provider, SkillSource)  │
+│  - Rich domain models with behavior (Skill, SkillsCatalog, Provider)│
 │  - Protocols with @Mockable for DI (SkillRepository, GitCLIClient)  │
 │  - Pure business logic, no external dependencies                    │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Infrastructure (Sources/Infrastructure/)                           │
 │  - Repository implementations (LocalSkillRepository, GitHub, Git)   │
+│  - MergedSkillRepository for combining multiple sources             │
 │  - External integrations (GitHubClient, GitCLIClient, SkillParser)  │
 │  - File system operations (FileSystemSkillInstaller)                │
 ├─────────────────────────────────────────────────────────────────────┤
 │  App (Sources/App/)                                                 │
 │  - SwiftUI views consuming domain models directly (no ViewModel)    │
-│  - SkillLibrary (@Observable) for shared library state              │
+│  - SkillLibrary (@Observable) coordinates catalogs                  │
 │  - Dependency wiring in SkillsManagerApp                            │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -52,6 +53,46 @@ Three-layer architecture with clean separation:
 - Views consume domain models directly - no ViewModel layer
 - `@Mockable` protocol annotation generates mocks for testing
 - `MOCKING` compiler flag enabled for Domain, Infrastructure, and their tests
+- Tell-Don't-Ask: objects encapsulate behavior with their data
+
+## Domain Model Hierarchy
+
+```
+SkillLibrary (@Observable)
+├── localCatalog: SkillsCatalog     ← Installed skills (claude + codex)
+└── remoteCatalogs: [SkillsCatalog] ← GitHub skill repos
+    └── skills: [Skill]              ← Each catalog owns its skills
+```
+
+### Key Domain Classes
+
+**SkillsCatalog** - Rich domain class that owns skills:
+```swift
+@Observable
+public final class SkillsCatalog {
+    public var skills: [Skill] = []
+
+    // Tell-Don't-Ask: catalog manages its own skills
+    public func loadSkills() async { ... }
+    public func addSkill(_ skill: Skill) { ... }
+    public func removeSkill(uniqueKey: String) { ... }
+    public func updateInstallationStatus(for uniqueKey: String, to providers: Set<Provider>) { ... }
+    public func syncInstallationStatus(with installedSkills: [Skill]) { ... }
+}
+```
+
+**SkillLibrary** - Coordinates catalogs:
+```swift
+@Observable
+public final class SkillLibrary {
+    public let localCatalog: SkillsCatalog      // Installed skills
+    public var remoteCatalogs: [SkillsCatalog]  // Remote catalogs
+
+    public var filteredSkills: [Skill] {
+        selectedCatalog.skills.filtered(by: searchQuery)
+    }
+}
+```
 
 ## TDD Approach (Chicago School)
 
@@ -64,15 +105,19 @@ This project follows **Chicago School TDD** (state-based testing):
 
 Example pattern:
 ```swift
-@Test func `repository returns skills from directory`() async throws {
-    // Given - stub dependencies
-    given(mockFileManager).contentsOfDirectory(at: any()).willReturn([skillURL])
+@Test func `install adds skill to local catalog`() async {
+    let remoteSkill = makeRemoteSkill(id: "test")
+    let localCatalog = makeLocalCatalog()
+    let mockInstaller = MockSkillInstaller()
 
-    // When
-    let skills = try await repository.fetchSkills()
+    given(mockInstaller).install(.any, to: .any).willReturn(remoteSkill.installing(for: .claude))
 
-    // Then - assert state, not interactions
-    #expect(skills.count == 1)
+    let library = SkillLibrary(localCatalog: localCatalog, installer: mockInstaller)
+    library.selectedSkill = remoteSkill
+
+    await library.install(to: [.claude])
+
+    #expect(localCatalog.skills.count == 1)
 }
 ```
 
@@ -82,17 +127,69 @@ Domain models encapsulate behavior matching user's mental model:
 
 ```swift
 public struct Skill: Sendable, Equatable, Identifiable {
-    public var displayName: String {  // Computed behavior
-        provider?.name ?? name
+    // User asks: "What name should I see?"
+    public var displayName: String {
+        repoPath != nil ? "\(name) (\(repoPath!))" : name
+    }
+
+    // User asks: "Is this skill installed?"
+    public var isInstalled: Bool {
+        !installedProviders.isEmpty
+    }
+
+    // User asks: "Can I edit this skill?"
+    public var isEditable: Bool {
+        source.isLocal
     }
 }
+```
+
+## Tell-Don't-Ask Principle
+
+Objects bundle data with behavior. Instead of:
+```swift
+// BAD: Asking for data and operating on it
+for index in catalog.skills.indices {
+    if catalog.skills[index].uniqueKey == uniqueKey {
+        catalog.skills[index] = catalog.skills[index].withInstalledProviders(providers)
+    }
+}
+```
+
+Use:
+```swift
+// GOOD: Tell the object what to do
+catalog.updateInstallationStatus(for: uniqueKey, to: providers)
 ```
 
 ## Skill Sources
 
 The app manages skills from multiple sources:
-- **Local**: Skills from `~/.claude/skills/`
-- **GitHub**: Skills fetched via GitHub API
-- **Git CLI**: Skills from cloned repositories
 
-Each source has a corresponding `SkillRepository` implementation in Infrastructure.
+- **Local Catalog**: Installed skills from `~/.claude/skills/` and `~/.codex/skills/`
+  - Uses `MergedSkillRepository` to combine claude + codex providers
+- **Remote Catalogs**: GitHub repositories containing skills
+  - Uses `ClonedRepoSkillRepository` to clone and parse skills
+  - Cache cleaning handled by `SkillLibrary` (infrastructure concern)
+
+### Source Filter
+```swift
+public enum SourceFilter: Hashable {
+    case local                    // Show localCatalog.skills
+    case remote(repoId: UUID)     // Show remoteCatalog.skills
+}
+```
+
+## Persistence
+
+Remote catalogs are persisted using `SkillsCatalog.Data`:
+```swift
+public struct Data: Codable, Sendable {
+    public let id: UUID
+    public let url: String?  // nil for local
+    public let name: String
+    public let addedAt: Date
+}
+```
+
+Local catalog is not persisted (rebuilt from filesystem on load).
