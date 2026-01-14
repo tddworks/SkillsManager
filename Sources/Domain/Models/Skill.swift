@@ -41,9 +41,14 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     // MARK: - Computed Properties (Domain Behavior)
 
     /// Display name for the skill
-    /// Shows path context for remote skills with prefixed IDs
+    /// - Local skills: just the name (clean)
+    /// - Remote skills: path prefix + name (to distinguish variants)
     public var displayName: String {
-        // If ID has a path prefix (contains dash and differs from folderName)
+        // Local skills: just show the name
+        if source.isLocal {
+            return name
+        }
+        // Remote skills: show path context if ID has a prefix
         if id != folderName && id.hasSuffix(folderName) {
             let prefix = String(id.dropLast(folderName.count + 1))
             let displayPrefix = prefix.replacingOccurrences(of: "-", with: " / ")
