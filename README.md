@@ -123,21 +123,28 @@ tuist test
 
 > **Full documentation:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-Skills Manager uses a **layered architecture** following rich domain model patterns:
+Skills Manager uses a **layered architecture** with rich domain models:
+
+```
+SkillLibrary (@Observable)
+├── localCatalog: SkillsCatalog     ← Installed skills (claude + codex)
+└── remoteCatalogs: [SkillsCatalog] ← GitHub skill repositories
+    └── skills: [Skill]              ← Each catalog OWNS its skills
+```
 
 | Layer | Location | Purpose |
 |-------|----------|---------|
-| **Domain** | `Sources/Domain/` | Rich models, protocols, actors (single source of truth) |
+| **Domain** | `Sources/Domain/` | Rich models with behavior (SkillsCatalog, Skill) |
 | **Infrastructure** | `Sources/Infrastructure/` | Repositories, clients, parsers, installers |
 | **App** | `Sources/App/` | SwiftUI views consuming domain directly (no ViewModel) |
 
 ### Key Design Decisions
 
 - **Rich Domain Models** - Behavior encapsulated in models (not anemic data)
+- **Tell-Don't-Ask** - Objects manage their own state; callers tell objects what to do
 - **Protocol-Based DI** - `@Mockable` protocols for testability
 - **Chicago School TDD** - Test state changes, not interactions
 - **No ViewModel Layer** - Views consume domain models directly
-- **Actors for Thread Safety** - Concurrent operations handled safely
 
 ## Release & Auto-Updates
 
@@ -192,18 +199,19 @@ The release workflow will:
 SkillsManager/
 ├── Sources/
 │   ├── Domain/
-│   │   ├── Models/          # Skill, Provider, SkillSource, SkillsRepo
-│   │   └── Protocols/       # SkillRepository, SkillInstaller
+│   │   ├── Models/          # Skill, SkillsCatalog (@Observable class), Provider
+│   │   └── Protocols/       # SkillRepository, SkillInstaller (@Mockable)
 │   ├── Infrastructure/
-│   │   ├── GitHub/          # GitHubClient, GitHubSkillRepository
-│   │   ├── Local/           # LocalSkillRepository
+│   │   ├── Repositories/    # LocalSkillRepository, ClonedRepo, MergedRepo
+│   │   ├── Local/           # ProviderPathResolver, LocalSkillWriter
 │   │   ├── Parser/          # SkillParser (YAML frontmatter)
 │   │   └── Installer/       # FileSystemSkillInstaller
 │   └── App/
-│       ├── Views/           # SwiftUI views
-│       └── SkillLibrary.swift   # Observable skill library
+│       ├── Views/           # SwiftUI views (consume domain directly)
+│       └── SkillLibrary.swift   # @Observable coordinator for catalogs
 ├── Tests/
-│   ├── DomainTests/
+│   ├── DomainTests/         # SkillTests, SkillsCatalogTests
+│   ├── AppTests/            # SkillLibraryTests
 │   └── InfrastructureTests/
 ├── Project.swift            # Tuist configuration
 └── Package.swift            # SPM configuration
