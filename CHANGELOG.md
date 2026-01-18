@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - Unreleased
 
+## [0.1.2] - 2026-01-18
+
+### Added
+- **Local Directory Skill Catalogs**: Browse and add skill catalogs directly from local folders on your Mac. Simply use the "Add Catalog" button and choose a local directory containing your skills. Perfect for developing and testing skills before publishing them.
+- **Recursive Skill Discovery**: Skills Manager now finds skills in nested subdirectories. Whether your skills are organized in folders or deeply nested, they'll all be discovered and displayed with clear path labels.
+
+### Improved
+- **Better Skill Identification**: Skills are now identified by their unique path, preventing conflicts when multiple skills have the same name in different locations.
+- **Clearer Display Names**: Skills from nested directories now show their relative path (e.g., "my-skill (tools/automation)") so you can easily distinguish between skills with similar names.
+
+### Fixed
+- **Skill Installation Sync**: Fixed an issue where installed skills weren't properly matched with their remote counterparts, ensuring accurate "installed" badges across all views.
+
 ## [0.1.1] - 2026-01-14
 
 ### Added
