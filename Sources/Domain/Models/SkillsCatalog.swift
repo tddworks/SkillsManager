@@ -107,6 +107,11 @@ public final class SkillsCatalog: Identifiable {
         skills.removeAll { $0.uniqueKey == uniqueKey }
     }
 
+    /// Remove a skill by id (folder name) - used when reinstalling to avoid duplicates
+    public func removeSkillById(_ id: String) {
+        skills.removeAll { $0.id == id }
+    }
+
     /// Update an existing skill in the catalog
     public func updateSkill(_ skill: Skill) {
         if let index = skills.firstIndex(where: { $0.id == skill.id }) {

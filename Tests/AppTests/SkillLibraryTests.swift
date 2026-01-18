@@ -77,6 +77,38 @@ struct SkillLibraryTests {
         #expect(localCatalog.skills.first?.installedProviders == [.claude, .codex])
     }
 
+    @Test func `install replaces existing local skill with different uniqueKey`() async {
+        // Scenario: local skill exists without repoPath (loaded from disk before .skill-id was written)
+        // User installs the same skill from remote which has repoPath
+        // The old skill should be replaced, not duplicated
+        let localSkill = makeLocalSkill(id: "test-skill", provider: .claude)
+            .installing(for: .claude)
+        // uniqueKey = "test-skill" (no repoPath)
+
+        let remoteSkill = makeRemoteSkill(id: "test-skill", repoPath: ".claude/skills")
+        // uniqueKey = ".claude/skills/test-skill"
+
+        let mockInstaller = MockSkillInstaller()
+        let localCatalog = makeLocalCatalog(skills: [localSkill])
+        let remoteCatalog = makeRemoteCatalog(skills: [remoteSkill])
+
+        given(mockInstaller).install(.any, to: .any).willReturn(remoteSkill.installing(for: .claude))
+
+        let library = SkillLibrary(
+            localCatalog: localCatalog,
+            remoteCatalogs: [remoteCatalog],
+            installer: mockInstaller
+        )
+        library.selectedSkill = remoteSkill
+
+        await library.install(to: [.claude])
+
+        // Should have only 1 skill (old one replaced, not duplicated)
+        #expect(localCatalog.skills.count == 1)
+        // The skill should have the new uniqueKey with repoPath
+        #expect(localCatalog.skills.first?.uniqueKey == ".claude/skills/test-skill")
+    }
+
     @Test func `install sets error message on failure`() async {
         let skill = makeRemoteSkill(id: "test-skill")
         let mockInstaller = MockSkillInstaller()
@@ -253,14 +285,15 @@ struct SkillLibraryTests {
         )
     }
 
-    private func makeRemoteSkill(id: String) -> Skill {
+    private func makeRemoteSkill(id: String, repoPath: String? = nil) -> Skill {
         Skill(
             id: id,
             name: "Remote Skill",
             description: "Remote description",
             version: "1.0.0",
             content: "# Content",
-            source: .remote(repoUrl: "https://github.com/example/skills")
+            source: .remote(repoUrl: "https://github.com/example/skills"),
+            repoPath: repoPath
         )
     }
 }

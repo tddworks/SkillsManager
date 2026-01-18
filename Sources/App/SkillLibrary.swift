@@ -286,6 +286,10 @@ public final class SkillLibrary {
 
     /// Add skill to local catalog (creates entry if not exists)
     private func addToLocalCatalog(_ skill: Skill, providers: Set<Provider>) {
+        // Remove any existing skill with the same id to avoid duplicates
+        // This handles the case where an old skill exists without repoPath metadata
+        localCatalog.removeSkillById(skill.id)
+
         let localSkill = Skill(
             id: skill.id,
             name: skill.name,
