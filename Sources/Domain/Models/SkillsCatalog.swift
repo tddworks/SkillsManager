@@ -116,14 +116,24 @@ public final class SkillsCatalog: Identifiable {
 
     // MARK: - Computed Properties
 
-    /// Whether this is a local catalog
+    /// Whether this is a local catalog (installed skills - no URL)
     public var isLocal: Bool {
         url == nil
     }
 
-    /// Whether this URL is valid (always true for local)
+    /// Whether this is a local directory catalog (has file:// URL)
+    public var isLocalDirectory: Bool {
+        guard let url = url else { return false }
+        return url.hasPrefix("file://")
+    }
+
+    /// Whether this URL is valid (always true for local, true for GitHub URLs and file:// URLs)
     public var isValid: Bool {
         guard let url = url else { return true }
+        // Accept both GitHub URLs and file:// URLs
+        if url.hasPrefix("file://") {
+            return true
+        }
         return url.contains("github.com") && url.contains("/")
     }
 
@@ -155,8 +165,19 @@ public final class SkillsCatalog: Identifiable {
         return error.localizedDescription
     }
 
-    /// Extract repo name from GitHub URL
+    /// Extract name from URL (GitHub URL or file:// URL)
     nonisolated public static func extractName(from url: String) -> String {
+        // Handle file:// URLs
+        if url.hasPrefix("file://") {
+            let path = String(url.dropFirst(7))
+            if let lastComponent = URL(fileURLWithPath: path).lastPathComponent as String?,
+               !lastComponent.isEmpty {
+                return lastComponent.capitalized
+            }
+            return "Local Directory"
+        }
+
+        // Handle GitHub URLs
         var cleanUrl = url
             .replacingOccurrences(of: "https://github.com/", with: "")
             .replacingOccurrences(of: "http://github.com/", with: "")

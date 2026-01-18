@@ -566,6 +566,26 @@ struct SkillSourceTests {
 
         #expect(source.displayName == "Remote")
     }
+
+    @Test func `localDirectory source returns directory name`() {
+        let source = SkillSource.localDirectory(path: "/Users/test/projects/my-project/.agent/skills")
+
+        #expect(source.displayName == "skills")
+    }
+
+    @Test func `localDirectory source is not local provider`() {
+        let source = SkillSource.localDirectory(path: "/some/path")
+
+        #expect(source.isLocal == false)
+        #expect(source.isRemote == false)
+        #expect(source.isLocalDirectory == true)
+    }
+
+    @Test func `localDirectory with file URL extracts path`() {
+        let source = SkillSource.localDirectory(path: "file:///Users/test/projects/.agent/skills")
+
+        #expect(source.displayName == "skills")
+    }
 }
 
 // MARK: - SkillsCatalog Tests
@@ -651,5 +671,38 @@ struct SkillsCatalogTests {
         let catalog = SkillsCatalog(url: "https://github.com/owner/repo", loader: MockSkillRepository())
 
         #expect(catalog.isLocal == false)
+    }
+
+    // MARK: - Local Directory Catalog Tests
+
+    @Test func `validates file URL`() {
+        let validCatalog = SkillsCatalog(url: "file:///Users/test/projects/.agent/skills", loader: MockSkillRepository())
+
+        #expect(validCatalog.isValid == true)
+    }
+
+    @Test func `extracts name from file URL`() {
+        let catalog = SkillsCatalog(url: "file:///Users/test/projects/my-project/.agent/skills", loader: MockSkillRepository())
+
+        #expect(catalog.name == "Skills")
+    }
+
+    @Test func `extracts name from nested file path`() {
+        let name = SkillsCatalog.extractName(from: "file:///Users/test/.gemini/antigravity/skills")
+
+        #expect(name == "Skills")
+    }
+
+    @Test func `isLocalDirectory returns true for file URL`() {
+        let catalog = SkillsCatalog(url: "file:///path/to/skills", loader: MockSkillRepository())
+
+        #expect(catalog.isLocalDirectory == true)
+        #expect(catalog.isLocal == false)  // isLocal means no URL (installed skills)
+    }
+
+    @Test func `isLocalDirectory returns false for GitHub URL`() {
+        let catalog = SkillsCatalog(url: "https://github.com/owner/repo", loader: MockSkillRepository())
+
+        #expect(catalog.isLocalDirectory == false)
     }
 }

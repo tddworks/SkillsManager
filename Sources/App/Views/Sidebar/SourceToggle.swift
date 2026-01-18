@@ -53,7 +53,7 @@ struct SourcePicker: View {
                         }
                     } label: {
                         HStack {
-                            Label(catalog.name, systemImage: "cloud")
+                            Label(catalog.name, systemImage: catalog.isLocalDirectory ? "folder" : "cloud")
                             if case .remote(let catalogId) = selection, catalogId == catalog.id {
                                 Image(systemName: "checkmark")
                             }
@@ -106,8 +106,13 @@ struct SourcePicker: View {
 
     private var sourceIcon: String {
         switch selection {
-        case .local: return "internaldrive"
-        case .remote: return "cloud"
+        case .local:
+            return "internaldrive"
+        case .remote(let catalogId):
+            if let catalog = catalogs.first(where: { $0.id == catalogId }), catalog.isLocalDirectory {
+                return "folder"
+            }
+            return "cloud"
         }
     }
 
@@ -138,7 +143,7 @@ struct AddCatalogSheet: View {
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(DesignSystem.Colors.primaryText)
 
-                Text("Enter a GitHub repository URL containing skills.")
+                Text("Add a GitHub repository or local directory containing skills.")
                     .font(DesignSystem.Typography.bodySecondary)
                     .foregroundStyle(DesignSystem.Colors.secondaryText)
             }
@@ -149,6 +154,49 @@ struct AddCatalogSheet: View {
                 .fill(DesignSystem.Colors.subtleBorder)
                 .frame(height: 1)
                 .padding(.bottom, DesignSystem.Spacing.lg)
+
+            // Local Directory Button
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                Text("Local Directory")
+                    .font(DesignSystem.Typography.headline)
+                    .foregroundStyle(DesignSystem.Colors.primaryText)
+
+                Button {
+                    browseLocalDirectory()
+                } label: {
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("Browse...")
+                    }
+                    .font(DesignSystem.Typography.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.sm)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Text("Select a folder containing skill subdirectories with SKILL.md files.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
+            }
+            .padding(.bottom, DesignSystem.Spacing.lg)
+
+            // Divider with "or"
+            HStack {
+                Rectangle()
+                    .fill(DesignSystem.Colors.subtleBorder)
+                    .frame(height: 1)
+
+                Text("or")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
+                    .padding(.horizontal, DesignSystem.Spacing.sm)
+
+                Rectangle()
+                    .fill(DesignSystem.Colors.subtleBorder)
+                    .frame(height: 1)
+            }
+            .padding(.bottom, DesignSystem.Spacing.lg)
 
             // URL input
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -172,23 +220,6 @@ struct AddCatalogSheet: View {
                             )
                     )
                     .focused($isURLFocused)
-
-                Text("The catalog should contain skill folders with SKILL.md files.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
-            }
-            .padding(.bottom, DesignSystem.Spacing.lg)
-
-            // Example
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Examples")
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(DesignSystem.Colors.tertiaryText)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    exampleRow("anthropics/skills")
-                    exampleRow("your-org/internal-skills")
-                }
             }
 
             Spacer()
@@ -211,7 +242,7 @@ struct AddCatalogSheet: View {
                     library.addCatalog(url: urlInput)
                     isPresented = false
                 } label: {
-                    Text("Add Catalog")
+                    Text("Add GitHub Catalog")
                         .font(DesignSystem.Typography.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -223,22 +254,24 @@ struct AddCatalogSheet: View {
             }
         }
         .padding(DesignSystem.Spacing.xxl)
-        .frame(width: 450, height: 340)
+        .frame(width: 450, height: 400)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             isURLFocused = true
         }
     }
 
-    private func exampleRow(_ catalog: String) -> some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "link")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.tertiaryText)
+    private func browseLocalDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Skills Directory"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a directory containing skill folders (each with a SKILL.md file)"
 
-            Text("github.com/\(catalog)")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.secondaryText)
+        if panel.runModal() == .OK, let url = panel.url {
+            library.addCatalog(url: "file://\(url.path)")
+            isPresented = false
         }
     }
 }
@@ -256,7 +289,7 @@ struct CatalogRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: DesignSystem.Spacing.md) {
-                Image(systemName: "cloud")
+                Image(systemName: catalog.isLocalDirectory ? "folder" : "cloud")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.secondaryText)
 

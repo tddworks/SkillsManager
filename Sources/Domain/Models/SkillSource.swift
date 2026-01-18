@@ -1,6 +1,6 @@
 import Foundation
 
-/// Represents where a skill comes from - local installation or remote repository
+/// Represents where a skill comes from - local installation, remote repository, or local directory
 public enum SkillSource: Sendable, Equatable, Hashable {
     /// Skill is installed locally for a specific provider
     case local(provider: Provider)
@@ -8,7 +8,10 @@ public enum SkillSource: Sendable, Equatable, Hashable {
     /// Skill is from a remote GitHub repository
     case remote(repoUrl: String)
 
-    /// Whether this skill is from a local installation
+    /// Skill is from a local directory (not a provider installation)
+    case localDirectory(path: String)
+
+    /// Whether this skill is from a local installation (provider-based)
     public var isLocal: Bool {
         if case .local = self { return true }
         return false
@@ -17,6 +20,12 @@ public enum SkillSource: Sendable, Equatable, Hashable {
     /// Whether this skill is from a remote repository
     public var isRemote: Bool {
         if case .remote = self { return true }
+        return false
+    }
+
+    /// Whether this skill is from a local directory catalog
+    public var isLocalDirectory: Bool {
+        if case .localDirectory = self { return true }
         return false
     }
 
@@ -31,6 +40,14 @@ public enum SkillSource: Sendable, Equatable, Hashable {
                 return lastComponent
             }
             return "Remote"
+        case .localDirectory(let path):
+            // Extract directory name from path (handle both file:// URLs and plain paths)
+            let cleanPath = path.hasPrefix("file://") ? String(path.dropFirst(7)) : path
+            if let lastComponent = URL(fileURLWithPath: cleanPath).lastPathComponent as String?,
+               !lastComponent.isEmpty {
+                return lastComponent
+            }
+            return "Local Directory"
         }
     }
 }

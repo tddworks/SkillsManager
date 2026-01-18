@@ -100,8 +100,8 @@ public final class SkillLibrary {
 
         self.installer = FileSystemSkillInstaller()
         self.writerFactory = { LocalSkillWriter() }
-        self.catalogLoaderFactory = { ClonedRepoSkillRepository(repoUrl: $0) }
-        self.cacheCleaner = { try ClonedRepoSkillRepository.deleteClone(forRepoUrl: $0) }
+        self.catalogLoaderFactory = Self.createCatalogLoader
+        self.cacheCleaner = Self.cleanCacheForURL
         self.remoteCatalogs = Self.loadRemoteCatalogs(loaderFactory: catalogLoaderFactory)
     }
 
@@ -124,14 +124,14 @@ public final class SkillLibrary {
 
     // MARK: - Catalog Management
 
-    /// Add a new remote catalog
+    /// Add a new catalog (GitHub URL or local directory file:// URL)
     public func addCatalog(url: String) {
         let catalog = SkillsCatalog(
             url: url,
             loader: catalogLoaderFactory(url)
         )
         guard catalog.isValid else {
-            errorMessage = "Invalid GitHub URL"
+            errorMessage = "Invalid URL. Use a GitHub URL or file:// path."
             return
         }
         guard !remoteCatalogs.contains(where: { $0.url == url }) else {
@@ -334,6 +334,25 @@ public final class SkillLibrary {
         }
     }
 
+}
+
+// MARK: - Static Helpers
+
+extension SkillLibrary {
+    /// Create the appropriate loader for a URL (file:// or GitHub)
+    static func createCatalogLoader(for url: String) -> SkillRepository {
+        if url.hasPrefix("file://") {
+            return LocalDirectorySkillRepository(directoryPath: url)
+        }
+        return ClonedRepoSkillRepository(repoUrl: url)
+    }
+
+    /// Clean cache for a URL (no-op for file:// URLs)
+    static func cleanCacheForURL(_ url: String) throws {
+        // Local directory catalogs don't have cache to clean
+        guard !url.hasPrefix("file://") else { return }
+        try ClonedRepoSkillRepository.deleteClone(forRepoUrl: url)
+    }
 }
 
 /// Filter for skill sources

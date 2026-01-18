@@ -84,6 +84,10 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
             // Use hash of URL to keep it short but unique
             let urlHash = String(repoUrl.hashValue)
             return "remote-\(urlHash)-\(uniqueKey)"
+        case .localDirectory(let path):
+            // Use hash of path to keep it short but unique
+            let pathHash = String(path.hashValue)
+            return "localdir-\(pathHash)-\(uniqueKey)"
         }
     }
 
