@@ -15,15 +15,18 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
     private let fileManager: FileManager
     private let gitHubClient: GitHubClientProtocol
     private let pathResolver: ProviderPathResolver
+    private let cacheDirectory: String
 
     public init(
         fileManager: FileManager = .default,
         gitHubClient: GitHubClientProtocol = GitHubClient.shared,
-        pathResolver: ProviderPathResolver = ProviderPathResolver()
+        pathResolver: ProviderPathResolver = ProviderPathResolver(),
+        cacheDirectory: String = ClonedRepoSkillRepository.defaultCacheDirectory
     ) {
         self.fileManager = fileManager
         self.gitHubClient = gitHubClient
         self.pathResolver = pathResolver
+        self.cacheDirectory = cacheDirectory
     }
 
     public func install(_ skill: Skill, to providers: Set<Provider>) async throws -> Skill {
@@ -48,11 +51,12 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             let metadataPath = "\(targetPath)/.skill-id"
             try writeFile(content: skill.uniqueKey, to: metadataPath)
 
-            // If remote, fetch additional files (references, scripts, assets)
+            // If remote, copy additional files (references, scripts, assets)
             if case .remote(let repoUrl) = skill.source {
-                try await fetchAdditionalFiles(
+                try await copyAdditionalFiles(
                     skillId: skill.id,
                     repoUrl: repoUrl,
+                    repoPath: skill.repoPath,
                     targetPath: targetPath
                 )
             }
@@ -95,7 +99,72 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
         }
     }
 
-    private func fetchAdditionalFiles(
+    /// Copy additional files from local clone or fetch from GitHub API
+    private func copyAdditionalFiles(
+        skillId: String,
+        repoUrl: String,
+        repoPath: String?,
+        targetPath: String
+    ) async throws {
+        let (owner, repo) = ClonedRepoSkillRepository.parseGitHubURL(repoUrl)
+
+        // First, try to copy from local clone if it exists
+        let clonedRepoPath = "\(cacheDirectory)/\(owner)_\(repo)"
+        if fileManager.fileExists(atPath: clonedRepoPath) {
+            // Use repoPath if available, otherwise search common locations
+            let skillSourcePath: String
+            if let repoPath = repoPath {
+                skillSourcePath = "\(clonedRepoPath)/\(repoPath)/\(skillId)"
+            } else {
+                // Fall back to searching common locations
+                let possiblePaths = [
+                    "\(clonedRepoPath)/\(skillId)",
+                    "\(clonedRepoPath)/skills/\(skillId)"
+                ]
+                skillSourcePath = possiblePaths.first { fileManager.fileExists(atPath: $0) } ?? ""
+            }
+
+            if !skillSourcePath.isEmpty && fileManager.fileExists(atPath: skillSourcePath) {
+                try copyDirectoryContents(from: skillSourcePath, to: targetPath)
+                return
+            }
+        }
+
+        // Fall back to GitHub API
+        try await fetchAdditionalFilesFromGitHub(
+            skillId: skillId,
+            repoUrl: repoUrl,
+            targetPath: targetPath
+        )
+    }
+
+    /// Copy directory contents from local clone (excluding SKILL.md)
+    private func copyDirectoryContents(from sourcePath: String, to targetPath: String) throws {
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: sourcePath) else {
+            return
+        }
+
+        for item in contents {
+            // Skip SKILL.md (already written) and .skill-id (we write our own)
+            if item == "SKILL.md" || item == ".skill-id" { continue }
+
+            let sourceItemPath = "\(sourcePath)/\(item)"
+            let targetItemPath = "\(targetPath)/\(item)"
+
+            var isDirectory: ObjCBool = false
+            fileManager.fileExists(atPath: sourceItemPath, isDirectory: &isDirectory)
+
+            if isDirectory.boolValue {
+                try createDirectory(at: targetItemPath)
+                try copyDirectoryContents(from: sourceItemPath, to: targetItemPath)
+            } else {
+                try fileManager.copyItem(atPath: sourceItemPath, toPath: targetItemPath)
+            }
+        }
+    }
+
+    /// Fetch additional files from GitHub API (fallback when no local clone)
+    private func fetchAdditionalFilesFromGitHub(
         skillId: String,
         repoUrl: String,
         targetPath: String

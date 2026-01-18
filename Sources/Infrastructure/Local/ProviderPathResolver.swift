@@ -11,6 +11,11 @@ public struct ProviderPathResolver: Sendable {
         self.homePath = FileManager.default.homeDirectoryForCurrentUser.path
     }
 
+    /// Initialize with a custom home path (for testing)
+    public init(homePath: String) {
+        self.homePath = homePath
+    }
+
     /// Returns the path where skills are installed for the given provider
     public func skillsPath(for provider: Provider) -> String {
         switch provider {

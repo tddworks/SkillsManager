@@ -82,6 +82,112 @@ struct FileSystemSkillInstallerTests {
     }
 }
 
+// MARK: - Install Additional Files Tests
+
+@Suite
+struct FileSystemSkillInstallerAdditionalFilesTests {
+
+    @Test func `install copies all subdirectories from cloned repo`() async throws {
+        // Setup: Create temp directories for cache and installation
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let cacheDir = tempDir.appendingPathComponent("cache").path
+        let homeDir = tempDir.appendingPathComponent("home").path
+        let installDir = "\(homeDir)/.claude/skills"
+        try FileManager.default.createDirectory(atPath: installDir, withIntermediateDirectories: true)
+
+        // Create a "cloned repo" structure in cache: owner_repo/.claude/skills/test-skill/
+        // Mimics https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max
+        let clonedSkillPath = "\(cacheDir)/example_repo/.claude/skills/test-skill"
+        try FileManager.default.createDirectory(atPath: clonedSkillPath, withIntermediateDirectories: true)
+
+        // Create SKILL.md
+        let skillContent = """
+        ---
+        name: Test Skill
+        description: A test skill
+        version: 1.0.0
+        ---
+        # Content
+        """
+        try skillContent.write(toFile: "\(clonedSkillPath)/SKILL.md", atomically: true, encoding: .utf8)
+
+        // Create scripts directory with files
+        let scriptsPath = "\(clonedSkillPath)/scripts"
+        try FileManager.default.createDirectory(atPath: scriptsPath, withIntermediateDirectories: true)
+        try "print('hello')".write(toFile: "\(scriptsPath)/search.py", atomically: true, encoding: .utf8)
+        try "print('core')".write(toFile: "\(scriptsPath)/core.py", atomically: true, encoding: .utf8)
+
+        // Create data directory with files
+        let dataPath = "\(clonedSkillPath)/data"
+        try FileManager.default.createDirectory(atPath: dataPath, withIntermediateDirectories: true)
+        try "palette data".write(toFile: "\(dataPath)/palettes.json", atomically: true, encoding: .utf8)
+        try "font data".write(toFile: "\(dataPath)/fonts.json", atomically: true, encoding: .utf8)
+
+        // Create the skill to install (remote skill with repoPath)
+        let skill = Skill(
+            id: "test-skill",
+            name: "Test Skill",
+            description: "A test skill",
+            version: "1.0.0",
+            content: skillContent,
+            source: .remote(repoUrl: "https://github.com/example/repo"),
+            repoPath: ".claude/skills"
+        )
+
+        // Create installer with custom cache directory and home path
+        let pathResolver = ProviderPathResolver(homePath: homeDir)
+        let installer = FileSystemSkillInstaller(
+            fileManager: .default,
+            gitHubClient: NoOpGitHubClient(),
+            pathResolver: pathResolver,
+            cacheDirectory: cacheDir
+        )
+
+        // When: Install the skill
+        _ = try await installer.install(skill, to: [.claude])
+
+        // Then: Verify scripts directory was copied
+        let installedSkillPath = "\(installDir)/test-skill"
+        let installedScriptsPath = "\(installedSkillPath)/scripts"
+        let installedDataPath = "\(installedSkillPath)/data"
+
+        #expect(FileManager.default.fileExists(atPath: installedScriptsPath), "Scripts directory should exist")
+        #expect(FileManager.default.fileExists(atPath: "\(installedScriptsPath)/search.py"), "search.py should exist")
+        #expect(FileManager.default.fileExists(atPath: "\(installedScriptsPath)/core.py"), "core.py should exist")
+
+        #expect(FileManager.default.fileExists(atPath: installedDataPath), "Data directory should exist")
+        #expect(FileManager.default.fileExists(atPath: "\(installedDataPath)/palettes.json"), "palettes.json should exist")
+        #expect(FileManager.default.fileExists(atPath: "\(installedDataPath)/fonts.json"), "fonts.json should exist")
+
+        // Verify file contents
+        if let scriptData = FileManager.default.contents(atPath: "\(installedScriptsPath)/search.py"),
+           let scriptContent = String(data: scriptData, encoding: .utf8) {
+            #expect(scriptContent == "print('hello')")
+        }
+
+        if let dataContent = FileManager.default.contents(atPath: "\(installedDataPath)/palettes.json"),
+           let dataString = String(data: dataContent, encoding: .utf8) {
+            #expect(dataString == "palette data")
+        }
+    }
+}
+
+// MARK: - Test Helpers
+
+/// No-op GitHub client that doesn't make network calls
+final class NoOpGitHubClient: GitHubClientProtocol {
+    func getContents(owner: String, repo: String, path: String) async throws -> [GitHubContent] {
+        return []
+    }
+
+    func getFileContent(owner: String, repo: String, path: String) async throws -> String {
+        return ""
+    }
+}
+
 // MARK: - Skill Matching Tests
 
 @Suite
