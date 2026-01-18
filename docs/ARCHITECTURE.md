@@ -7,8 +7,9 @@ Skills Manager is a macOS app that helps users discover, browse, and install ski
 ## Features
 
 - Browse skills from remote GitHub repositories (like anthropics/skills)
+- Browse skills from local directories (e.g., `~/projects/.agent/skills/`)
 - View locally installed skills
-- Toggle between Local/Remote sources
+- Toggle between Local/Remote/Local Directory sources
 - Search and filter skills
 - View skill details with rendered markdown
 - Install skills to Codex (`~/.codex/skills/public`) and/or Claude Code (`~/.claude/skills`)
@@ -25,13 +26,14 @@ Skills Manager is a macOS app that helps users discover, browse, and install ski
 │  ┌────────────────────────────────────────────────────────────────────────────┐ │
 │  │  SkillLibrary (@Observable)                                                │ │
 │  │  ├── localCatalog: SkillsCatalog    ← Installed skills (claude + codex)   │ │
-│  │  └── remoteCatalogs: [SkillsCatalog] ← GitHub skill repositories          │ │
+│  │  └── remoteCatalogs: [SkillsCatalog] ← GitHub repos OR local directories  │ │
 │  │                                                                            │ │
 │  │  SkillsCatalog (@Observable class)                                         │ │
 │  │  ├── skills: [Skill]                ← Catalog OWNS its skills             │ │
 │  │  ├── loadSkills() async             ← Tell-Don't-Ask behavior             │ │
 │  │  ├── updateInstallationStatus()                                           │ │
 │  │  ├── addSkill(), removeSkill()                                            │ │
+│  │  ├── isLocalDirectory: Bool         ← true for file:// URLs              │ │
 │  │  └── syncInstallationStatus()                                             │ │
 │  │                                                                            │ │
 │  │  Skill (struct)                     ← Rich domain model with behavior     │ │
@@ -40,15 +42,20 @@ Skills Manager is a macOS app that helps users discover, browse, and install ski
 │                                                                                  │
 │  INFRASTRUCTURE LAYER                                                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                  │
-│  │ MergedSkillRepo │  │ClonedRepoSkill  │  │ FileSystemSkill │                  │
-│  │ (claude+codex)  │  │Repository       │  │ Installer       │                  │
+│  │ MergedSkillRepo │  │ClonedRepoSkill  │  │ LocalDirectory  │                  │
+│  │ (claude+codex)  │  │Repository       │  │ SkillRepository │                  │
 │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘                  │
 │           │                    │                    │                            │
 │           ▼                    ▼                    ▼                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                  │
-│  │ LocalSkillRepo  │  │ GitCLIClient    │  │ProviderPath     │                  │
-│  │ (FileSystem)    │  │ (git clone/pull)│  │Resolver         │                  │
+│  │ LocalSkillRepo  │  │ GitCLIClient    │  │ FileSystem      │                  │
+│  │ (FileSystem)    │  │ (git clone/pull)│  │ (any directory) │                  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘                  │
+│                                                                                  │
+│  ┌─────────────────┐  ┌─────────────────┐                                       │
+│  │ FileSystemSkill │  │ProviderPath     │                                       │
+│  │ Installer       │  │ Resolver        │                                       │
+│  └─────────────────┘  └─────────────────┘                                       │
 │                                                                                  │
 │  APP LAYER (SwiftUI)                                                             │
 │  ┌────────────────────────────────────────────────────────────────────────────┐ │
@@ -59,6 +66,8 @@ Skills Manager is a macOS app that helps users discover, browse, and install ski
 │  │  │ - Source    │  │ - Install Button       │  │                         │  │ │
 │  │  │ - SkillList │  │                        │  │                         │  │ │
 │  │  └─────────────┘  └────────────────────────┘  └─────────────────────────┘  │ │
+│  │                                                                            │ │
+│  │  AddCatalogSheet: GitHub URL input OR local directory picker (NSOpenPanel)│ │
 │  └────────────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -78,9 +87,14 @@ Skills Manager is a macOS app that helps users discover, browse, and install ski
 ```
 SkillLibrary (@Observable)
 ├── localCatalog: SkillsCatalog     ← Installed skills (claude + codex)
-└── remoteCatalogs: [SkillsCatalog] ← GitHub skill repositories
+└── remoteCatalogs: [SkillsCatalog] ← GitHub repos OR local directories
     └── skills: [Skill]              ← Each catalog OWNS its skills
 ```
+
+**Catalog Types:**
+- **Local Catalog** (`url == nil`): Installed skills from `~/.claude/skills` and `~/.codex/skills`
+- **GitHub Catalog** (`url` starts with `https://github.com/`): Skills from cloned GitHub repos
+- **Local Directory Catalog** (`url` starts with `file://`): Skills from any local directory
 
 ### SkillsCatalog
 
@@ -110,7 +124,8 @@ public final class SkillsCatalog: Identifiable {
 
     // Computed
     public var isLocal: Bool { url == nil }
-    public var isValid: Bool { ... }
+    public var isLocalDirectory: Bool { url?.hasPrefix("file://") ?? false }
+    public var isValid: Bool { ... }  // Accepts GitHub URLs and file:// URLs
 }
 ```
 
@@ -183,11 +198,13 @@ Enum representing where a skill comes from.
 
 ```swift
 public enum SkillSource: Sendable, Equatable {
-    case local(provider: Provider)
-    case remote(repoUrl: String)
+    case local(provider: Provider)      // Installed in ~/.claude or ~/.codex
+    case remote(repoUrl: String)        // From a GitHub repository
+    case localDirectory(path: String)   // From any local directory
 
-    public var isLocal: Bool
-    public var isRemote: Bool
+    public var isLocal: Bool            // true for .local
+    public var isRemote: Bool           // true for .remote
+    public var isLocalDirectory: Bool   // true for .localDirectory
 }
 ```
 
@@ -204,12 +221,13 @@ public enum SkillSource: Sendable, Equatable {
 | `MergedSkillRepository` | Combines multiple repos | repositories | merged [Skill] | SkillRepository[] |
 | `LocalSkillRepository` | Read local skills | provider | [Skill] | FileSystem, PathResolver |
 | `ClonedRepoSkillRepository` | Fetch from cloned GitHub repo | repo URL | [Skill] | GitCLI |
+| `LocalDirectorySkillRepository` | Read skills from any directory | file:// URL | [Skill] | FileSystem |
 | `SkillParser` | Parse SKILL.md | fileContent | Skill metadata | None |
 | `SkillInstaller` | Copy skills to provider paths | Skill, [Provider] | Skill | FileSystem, PathResolver |
 
 ## Data Flow
 
-### Fetching Remote Skills
+### Fetching Remote Skills (GitHub)
 
 ```
 User selects remote catalog ──▶ SkillsCatalog.loadSkills()
@@ -225,6 +243,24 @@ User selects remote catalog ──▶ SkillsCatalog.loadSkills()
                                           │
                                           ▼
                               SwiftUI observes change, updates sidebar
+```
+
+### Fetching Local Directory Skills
+
+```
+User browses directory ──▶ NSOpenPanel ──▶ file:// URL
+                                          │
+                                          ▼
+                              SkillLibrary.addCatalog(url: "file://...")
+                                          │
+                                          ▼
+                              LocalDirectorySkillRepository created
+                                          │
+                                          ▼
+                              Recursive SKILL.md discovery (no git)
+                                          │
+                                          ▼
+                              catalog.skills = [Skill] with .localDirectory source
 ```
 
 ### Installing a Skill
@@ -263,12 +299,14 @@ SkillsManager/
 │   │       └── GitCLIClient.swift       # @Mockable protocol
 │   ├── Infrastructure/
 │   │   ├── Repositories/
-│   │   │   ├── LocalSkillRepository.swift
-│   │   │   ├── ClonedRepoSkillRepository.swift
-│   │   │   └── MergedSkillRepository.swift   # Combines claude + codex
+│   │   │   ├── MergedSkillRepository.swift   # Combines claude + codex
 │   │   ├── Local/
+│   │   │   ├── LocalSkillRepository.swift
+│   │   │   ├── LocalDirectorySkillRepository.swift  # Any directory (file:// URL)
 │   │   │   ├── LocalSkillWriter.swift
 │   │   │   └── ProviderPathResolver.swift
+│   │   ├── Git/
+│   │   │   └── ClonedRepoSkillRepository.swift
 │   │   ├── Parser/
 │   │   │   └── SkillParser.swift
 │   │   └── Installer/
@@ -288,7 +326,7 @@ SkillsManager/
 │               └── InstallSheet.swift
 └── Tests/
     ├── DomainTests/
-    │   ├── SkillTests.swift
+    │   ├── SkillTests.swift              # Includes SkillSource tests
     │   ├── SkillsCatalogTests.swift
     │   └── ProviderTests.swift
     ├── AppTests/
@@ -296,6 +334,8 @@ SkillsManager/
     └── InfrastructureTests/
         ├── SkillParserTests.swift
         ├── LocalSkillRepositoryTests.swift
+        ├── LocalDirectorySkillRepositoryTests.swift  # Tests for file:// catalogs
+        ├── ClonedRepoSkillRepositoryTests.swift
         └── FileSystemSkillInstallerTests.swift
 ```
 
