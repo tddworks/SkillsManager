@@ -18,6 +18,7 @@ A macOS application for discovering, browsing, installing, and tagging skills fo
 ## Features
 
 - **Browse Remote Skills** - Discover skills from GitHub repositories like [anthropics/skills](https://github.com/anthropics/skills)
+- **Chinese Discovery** - Chinese users can also discover and install skills via [Skills宝](https://skilery.com)
 - **Local Directory Support** - Add skills from any local directory via `file://` URLs
 - **View Installed Skills** - Filter by provider (Claude Code, Codex, or all)
 - **Multi-Repository Support** - Add and manage multiple GitHub skill catalogs
