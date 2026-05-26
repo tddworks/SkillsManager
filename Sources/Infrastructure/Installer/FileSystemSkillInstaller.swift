@@ -151,13 +151,18 @@ public final class FileSystemSkillInstaller: SkillInstaller, @unchecked Sendable
             let sourceItemPath = "\(sourcePath)/\(item)"
             let targetItemPath = "\(targetPath)/\(item)"
 
-            var isDirectory: ObjCBool = false
-            fileManager.fileExists(atPath: sourceItemPath, isDirectory: &isDirectory)
-
-            if isDirectory.boolValue {
+            // Drive every branch from a single attributesOfItem() read so the
+            // symlink check and the directory/file decision can't disagree.
+            // attributesOfItem does not follow links, so a malicious skill repo
+            // cannot smuggle a path pointing outside the skill folder.
+            let attributes = try fileManager.attributesOfItem(atPath: sourceItemPath)
+            switch attributes[.type] as? FileAttributeType {
+            case .typeSymbolicLink:
+                continue
+            case .typeDirectory:
                 try createDirectory(at: targetItemPath)
                 try copyDirectoryContents(from: sourceItemPath, to: targetItemPath)
-            } else {
+            default:
                 try fileManager.copyItem(atPath: sourceItemPath, toPath: targetItemPath)
             }
         }
